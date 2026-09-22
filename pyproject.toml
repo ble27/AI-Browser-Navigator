@@ -20,7 +20,12 @@ classifiers = [
 # a gesture-only install never pulls in audio/voice dependencies.
 dependencies = [
     "opencv-python>=4.9,<5",
-    "mediapipe>=0.10,<2",
+    # Pinned <1.0: mediapipe==1.0.0/1.0.1 crash HandLandmarker on some macOS
+    # setups with "Check failed: service_ Service is unavailable." inside
+    # DrishtiMetalHelper/TensorsToDetectionsCalculator, reproduced even with
+    # the CPU delegate and in IMAGE running mode. 0.10.35 does not have this
+    # bug. See docs/KNOWN_ISSUES.md before bumping this pin.
+    "mediapipe>=0.10.30,<0.11",
     "numpy>=1.26,<3",
     "pynput>=1.7,<2",
     "pyautogui>=0.9.54,<1",
