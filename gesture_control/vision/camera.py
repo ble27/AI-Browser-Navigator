@@ -8,6 +8,8 @@ place to be found and fixed.
 from __future__ import annotations
 
 import platform
+import threading
+import time
 from types import TracebackType
 
 import cv2
@@ -15,6 +17,11 @@ import numpy as np
 
 _MAX_CONSECUTIVE_BLACK_FRAMES = 30
 _BLACK_FRAME_MAX_PIXEL_VALUE = 2
+_LATEST_FRAME_TIMEOUT_S = 2.0
+# Asked only when a reader thread is dropping stale frames. A higher capture
+# rate means the newest image is younger when inference is slower than the
+# camera; drivers that ignore the request keep their default rate.
+_REQUESTED_CAPTURE_FPS = 60.0
 
 
 class CameraUnavailableError(RuntimeError):
@@ -34,6 +41,10 @@ class Camera:
         width: Requested capture width in pixels. Best-effort: not all
             camera drivers honor this.
         height: Requested capture height in pixels. Best-effort.
+        drop_stale_frames: When ``True``, a background reader keeps only the
+            newest frame. Landmark inference is often slower than the camera,
+            and OpenCV's capture queue would otherwise hand detection an image
+            that is already tens or hundreds of milliseconds old.
     """
 
     def __init__(
@@ -41,13 +52,20 @@ class Camera:
         device_index: int = 0,
         width: int | None = None,
         height: int | None = None,
+        drop_stale_frames: bool = False,
     ) -> None:
         """Store the requested camera configuration without opening the device yet."""
         self._device_index = device_index
         self._width = width
         self._height = height
+        self._drop_stale_frames = drop_stale_frames
         self._capture: cv2.VideoCapture | None = None
         self._consecutive_black_frames = 0
+        self._frame_lock = threading.Lock()
+        self._stop_reading = threading.Event()
+        self._reader_thread: threading.Thread | None = None
+        self._latest_frame: np.ndarray | None = None
+        self._reader_error: CameraUnavailableError | None = None
 
     def open(self) -> Camera:
         """Open the underlying camera device.
@@ -74,24 +92,95 @@ class Camera:
             capture.set(cv2.CAP_PROP_FRAME_WIDTH, self._width)
         if self._height is not None:
             capture.set(cv2.CAP_PROP_FRAME_HEIGHT, self._height)
+        # A one-frame driver queue is the best effort before the reader thread.
+        # Several backends ignore it, which is why ``drop_stale_frames`` exists.
+        capture.set(cv2.CAP_PROP_BUFFERSIZE, 1)
+        if self._drop_stale_frames:
+            capture.set(cv2.CAP_PROP_FPS, _REQUESTED_CAPTURE_FPS)
         self._capture = capture
+        if self._drop_stale_frames:
+            self._stop_reading.clear()
+            self._reader_thread = threading.Thread(
+                target=self._read_latest_loop,
+                name="gesture-control-camera",
+                daemon=True,
+            )
+            self._reader_thread.start()
         return self
 
     def read_frame(self) -> np.ndarray:
         """Read a single BGR frame from the camera.
 
         Returns:
-            An ``(height, width, 3)`` BGR ``numpy.ndarray``.
+            An ``(height, width, 3)`` BGR ``numpy.ndarray``. When
+            ``drop_stale_frames`` is enabled, this is a copy of the newest
+            frame the reader has captured, never an older queued one.
 
         Raises:
             RuntimeError: If called before :meth:`open`.
             CameraUnavailableError: If a frame could not be read (e.g. the
                 camera was disconnected mid-stream).
         """
-        if self._capture is None:
+        if self._capture is None and self._reader_thread is None:
             raise RuntimeError(
                 "Camera.read_frame() called before open(); use "
                 "`with Camera(...) as camera:` or call `.open()` first."
+            )
+        if self._drop_stale_frames:
+            return self._take_latest_frame()
+        return self._read_from_capture()
+
+    def close(self) -> None:
+        """Release the underlying camera device, if open. Safe to call twice."""
+        self._stop_reading.set()
+        # Releasing the device unblocks a reader stuck inside ``VideoCapture.read``.
+        if self._capture is not None:
+            self._capture.release()
+            self._capture = None
+        if self._reader_thread is not None:
+            self._reader_thread.join(timeout=_LATEST_FRAME_TIMEOUT_S)
+            self._reader_thread = None
+        with self._frame_lock:
+            self._latest_frame = None
+            self._reader_error = None
+        self._consecutive_black_frames = 0
+
+    def _read_latest_loop(self) -> None:
+        """Keep overwriting the shared slot so callers never see a queued frame."""
+        while not self._stop_reading.is_set():
+            try:
+                frame = self._read_from_capture().copy()
+            except CameraUnavailableError as exc:
+                with self._frame_lock:
+                    self._reader_error = exc
+                return
+            with self._frame_lock:
+                self._latest_frame = frame
+
+    def _take_latest_frame(self) -> np.ndarray:
+        """Return the newest captured frame, waiting briefly for the first one."""
+        deadline = time.monotonic() + _LATEST_FRAME_TIMEOUT_S
+        while time.monotonic() < deadline:
+            with self._frame_lock:
+                frame = self._latest_frame
+                self._latest_frame = None
+                error = self._reader_error
+            if frame is not None:
+                return frame
+            if error is not None:
+                raise error
+            time.sleep(0.001)
+        raise CameraUnavailableError(
+            "Timed out waiting for a camera frame. The camera may be disconnected "
+            "or held by another application."
+        )
+
+    def _read_from_capture(self) -> np.ndarray:
+        """Read one frame from the open device and apply the black-frame guard."""
+        if self._capture is None:
+            raise CameraUnavailableError(
+                "Failed to read a frame from the camera; it may have been "
+                "disconnected or released by another process."
             )
         ok, frame = self._capture.read()
         if not ok or frame is None:
@@ -111,13 +200,6 @@ class Camera:
         else:
             self._consecutive_black_frames = 0
         return frame
-
-    def close(self) -> None:
-        """Release the underlying camera device, if open. Safe to call twice."""
-        if self._capture is not None:
-            self._capture.release()
-            self._capture = None
-        self._consecutive_black_frames = 0
 
     def __enter__(self) -> Camera:
         """Open the camera on entering a ``with`` block. See :meth:`open`."""

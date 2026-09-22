@@ -7,6 +7,7 @@ hardware-in-the-loop verification.
 
 from __future__ import annotations
 
+import time
 from typing import ClassVar
 
 import cv2
@@ -26,6 +27,7 @@ class _FakeVideoCapture:
         self.device_index = device_index
         self.backend = backend
         self.released = False
+        self.reads = 0
         self._frame_queue = list(self.frames_to_return)
         self.props: dict[int, float] = {}
 
@@ -37,6 +39,7 @@ class _FakeVideoCapture:
         return True
 
     def read(self) -> tuple[bool, np.ndarray | None]:
+        self.reads += 1
         if not self._frame_queue:
             return False, None
         frame = self._frame_queue.pop(0)
@@ -123,3 +126,47 @@ def test_camera_read_frame_raises_after_persistently_black_frames(
             assert camera.read_frame() is black_frame
         with pytest.raises(CameraUnavailableError, match="returned only black frames"):
             camera.read_frame()
+
+
+def test_camera_requests_a_one_frame_driver_buffer(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A deep capture queue is what makes the pointer trail the hand."""
+    monkeypatch.setattr(camera_module.cv2, "VideoCapture", _FakeVideoCapture)
+
+    with Camera(device_index=0) as camera:
+        underlying = camera._capture
+        assert isinstance(underlying, _FakeVideoCapture)
+        assert underlying.props[cv2.CAP_PROP_BUFFERSIZE] == 1
+
+
+def test_drop_stale_frames_returns_the_newest_captured_frame(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Inference must see the latest image, not an earlier frame still in the queue."""
+    _FakeVideoCapture.frames_to_return = [
+        np.full((2, 2, 3), fill_value, dtype=np.uint8) for fill_value in (10, 20, 30)
+    ]
+    monkeypatch.setattr(camera_module.cv2, "VideoCapture", _FakeVideoCapture)
+
+    with Camera(device_index=0, drop_stale_frames=True) as camera:
+        underlying = camera._capture
+        assert isinstance(underlying, _FakeVideoCapture)
+        assert underlying.props[cv2.CAP_PROP_FPS] == 60.0
+        newest = _wait_for_pixel(camera, 30)
+
+    assert int(newest[0, 0, 0]) == 30
+    assert underlying.released is True
+
+
+def _wait_for_pixel(camera: Camera, pixel_value: int) -> np.ndarray:
+    """Read until the reader has published ``pixel_value`` or the device ends."""
+    deadline = time.monotonic() + 2.0
+    latest: np.ndarray | None = None
+    while time.monotonic() < deadline:
+        try:
+            latest = camera.read_frame()
+        except CameraUnavailableError:
+            break
+        if int(latest[0, 0, 0]) == pixel_value:
+            return latest
+    assert latest is not None
+    return latest
