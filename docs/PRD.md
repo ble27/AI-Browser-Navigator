@@ -161,10 +161,12 @@ flowchart TD
 
 ## 8. Tech stack
 
-- Python, pinned to a tested version (3.11 or 3.12) inside a project-local venv,
-  independent of whatever system Python is installed (this machine currently has
-  Homebrew Python 3.14.7, which is newer than most of these libraries are tested
-  against — verify compatibility at setup time before committing to a version).
+- Python 3.11, pinned inside a project-local venv via `scripts/setup_env.sh`,
+  independent of whatever system Python is installed (this machine's system
+  Python is Homebrew 3.14.7, far newer than these libraries are tested
+  against). Verified during M0: Python 3.12.5 has a known CPython `ast`
+  module regression that breaks Black's AST safety checks (fixed in 3.12.6),
+  so `scripts/setup_env.sh` prefers 3.11 first and falls back to 3.12.
 - `opencv-python`, `mediapipe` (`HandLandmarker`), `pynput` + `pyautogui`
   (input injection), `numpy`.
 - Voice (optional/lazy-imported so gesture-only usage has no audio dependency):

@@ -3,10 +3,9 @@
 This file is the fast-path for any AI coding agent (or human) picking up this
 repo cold. Read this before touching code.
 
-> Status: repo scaffold not yet created. This file describes the *target*
-> structure and conventions this project commits to as soon as M0 lands; treat
-> it as the contract to build toward, and update it in the same commit if
-> reality ever diverges from what's written here.
+> Status: M0 (repo scaffold) has landed. Package skeleton, tooling config, and
+> scripts described below exist and pass `scripts/check.sh`. Feature code
+> (vision/gestures/actions/backends/voice bodies) starts at M1.
 
 ## What this project is
 
