@@ -35,7 +35,7 @@ htmlcov/
 *.task
 *.onnx
 *.tflite
-models/downloaded/
+/models/
 whisper_models/
 voices/
 
