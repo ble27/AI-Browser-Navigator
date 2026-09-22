@@ -38,6 +38,7 @@ htmlcov/
 /models/
 whisper_models/
 voices/
+tests/manual/_cache/
 
 # Logs
 *.log
