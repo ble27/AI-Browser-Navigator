@@ -23,11 +23,13 @@ class PointerGesture:
     Attributes:
         x: Normalized horizontal index-fingertip position, clamped to ``[0, 1]``.
         y: Normalized vertical index-fingertip position, clamped to ``[0, 1]``.
+        is_pinching: Whether the thumb and index fingertips are currently pinched.
         pinch_started: Whether a thumb-index pinch began in this frame.
     """
 
     x: float
     y: float
+    is_pinching: bool
     pinch_started: bool
 
 
@@ -79,6 +81,7 @@ class PointerGestureRecognizer:
         return PointerGesture(
             x=_clamp_normalized(index_tip.x),
             y=_clamp_normalized(index_tip.y),
+            is_pinching=self._pinching,
             pinch_started=pinch_started,
         )
 

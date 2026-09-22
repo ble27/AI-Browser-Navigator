@@ -179,8 +179,11 @@ def _dispatch_pointer_intents(
         return
     selected_hand = max(hands, key=lambda hand: hand.score)
     pointer = pointer_recognizer.recognize(selected_hand)
-    x, y = cursor_mapper.map(pointer.x, pointer.y)
-    action_mapper.dispatch(Intent(IntentType.MOVE_CURSOR, x=x, y=y))
+    # Freeze the last stable pointer target while pinched so fingertip jitter
+    # cannot move a target out from under the click.
+    if not pointer.is_pinching:
+        x, y = cursor_mapper.map(pointer.x, pointer.y)
+        action_mapper.dispatch(Intent(IntentType.MOVE_CURSOR, x=x, y=y))
     if pointer.pinch_started:
         action_mapper.dispatch(Intent(IntentType.CLICK_LEFT))
 

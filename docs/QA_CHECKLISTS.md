@@ -32,7 +32,8 @@ milestone's commit/tag is considered done.
 - [ ] Moving the index fingertip moves the on-screen cursor smoothly (no
       jitter, no runaway drift).
 - [ ] A pinch (thumb + index) reliably registers as a single click on a
-      real target (e.g., a Dock icon).
+      real target (e.g., a Dock icon), without fingertip jitter moving the
+      cursor while pinched.
 - [ ] The safe-pause global hotkey immediately stops all cursor/click
       injection while actively gesturing, and a second press resumes it.
 - [ ] Releasing the pinch does not produce a spurious extra click.

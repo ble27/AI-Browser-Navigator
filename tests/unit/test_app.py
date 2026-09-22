@@ -10,8 +10,10 @@ from __future__ import annotations
 
 import pytest
 from gesture_control import app
+from gesture_control.actions import Intent, IntentType
 from gesture_control.app import build_arg_parser, main
 from gesture_control.vision.camera import CameraUnavailableError
+from gesture_control.vision.geometry import HandLandmarkIndex, HandObservation, Landmark
 
 
 def test_build_arg_parser_defaults() -> None:
@@ -72,6 +74,45 @@ def test_main_rejects_control_without_debug() -> None:
     """Input injection must only be enabled within the visible debug runtime."""
     with pytest.raises(SystemExit, match="2"):
         main(["--control"])
+
+
+class _RecordingActionMapper:
+    """Collect dispatched intents without injecting any operating-system input."""
+
+    def __init__(self) -> None:
+        self.intents: list[Intent] = []
+
+    def dispatch(self, intent: Intent) -> None:
+        """Record one intent."""
+        self.intents.append(intent)
+
+
+def _hand(index_tip: Landmark, thumb_tip: Landmark) -> HandObservation:
+    """Build a hand observation with a unit-sized pinch reference."""
+    landmarks = [Landmark(0.2, 0.2, 0.0) for _ in range(21)]
+    landmarks[HandLandmarkIndex.WRIST] = Landmark(0.0, 0.0, 0.0)
+    landmarks[HandLandmarkIndex.INDEX_FINGER_MCP] = Landmark(1.0, 0.0, 0.0)
+    landmarks[HandLandmarkIndex.INDEX_FINGER_TIP] = index_tip
+    landmarks[HandLandmarkIndex.THUMB_TIP] = thumb_tip
+    return HandObservation(tuple(landmarks), "Right", 0.99)
+
+
+def test_pointer_dispatch_freezes_cursor_for_the_duration_of_a_pinch() -> None:
+    """Pinching should click the established target without jittering away from it."""
+    action_mapper = _RecordingActionMapper()
+    recognizer = app.PointerGestureRecognizer()
+    cursor_mapper = app.CursorMapper(101, 101, smoothing=1.0)
+    open_hand = _hand(Landmark(0.8, 0.5, 0.0), Landmark(0.0, 0.5, 0.0))
+    pinched_hand = _hand(Landmark(0.2, 0.5, 0.0), Landmark(0.15, 0.5, 0.0))
+
+    app._dispatch_pointer_intents([open_hand], recognizer, cursor_mapper, action_mapper)
+    app._dispatch_pointer_intents([pinched_hand], recognizer, cursor_mapper, action_mapper)
+    app._dispatch_pointer_intents([pinched_hand], recognizer, cursor_mapper, action_mapper)
+
+    assert [intent.kind for intent in action_mapper.intents] == [
+        IntentType.MOVE_CURSOR,
+        IntentType.CLICK_LEFT,
+    ]
 
 
 def test_run_debug_overlay_returns_one_when_camera_unavailable(
