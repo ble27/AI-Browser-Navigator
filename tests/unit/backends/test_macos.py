@@ -10,8 +10,20 @@ class _FakeMouse:
     """Record cursor injection calls without touching the real pointer."""
 
     def __init__(self) -> None:
-        self.position: tuple[int, int] | None = None
+        self.position_sets = 0
+        self._position: tuple[int, int] | None = None
         self.clicks: list[object] = []
+
+    @property
+    def position(self) -> tuple[int, int] | None:
+        """Return the last injected pointer coordinate."""
+        return self._position
+
+    @position.setter
+    def position(self, value: tuple[int, int]) -> None:
+        """Record one pointer write."""
+        self.position_sets += 1
+        self._position = value
 
     def click(self, button: object) -> None:
         """Record one button click."""
@@ -25,6 +37,7 @@ def _backend_with_fake_mouse() -> tuple[MacOSInputBackend, _FakeMouse]:
     mouse = _FakeMouse()
     backend._mouse = mouse
     backend._left_button = "left"
+    backend._last_position = None
     return backend, mouse
 
 
@@ -49,3 +62,15 @@ def test_macos_backend_never_injects_input_when_paused() -> None:
 
     assert mouse.position is None
     assert mouse.clicks == []
+
+
+def test_macos_backend_skips_a_repeated_pointer_position() -> None:
+    """A resting hand must not write the same coordinate on every frame."""
+    backend, mouse = _backend_with_fake_mouse()
+
+    backend.move_to(11, 22)
+    backend.move_to(11, 22)
+    backend.move_to(12, 22)
+
+    assert mouse.position == (12, 22)
+    assert mouse.position_sets == 2

@@ -105,9 +105,44 @@ def test_pointer_dispatch_freezes_cursor_for_the_duration_of_a_pinch() -> None:
     open_hand = _hand(Landmark(0.8, 0.5, 0.0), Landmark(0.0, 0.5, 0.0))
     pinched_hand = _hand(Landmark(0.2, 0.5, 0.0), Landmark(0.15, 0.5, 0.0))
 
-    app._dispatch_pointer_intents([open_hand], recognizer, cursor_mapper, action_mapper)
-    app._dispatch_pointer_intents([pinched_hand], recognizer, cursor_mapper, action_mapper)
-    app._dispatch_pointer_intents([pinched_hand], recognizer, cursor_mapper, action_mapper)
+    presence = app.HandPresenceHold()
+    app._dispatch_pointer_intents(
+        [open_hand], recognizer, cursor_mapper, action_mapper, presence, timestamp_s=0.0
+    )
+    app._dispatch_pointer_intents(
+        [pinched_hand], recognizer, cursor_mapper, action_mapper, presence, timestamp_s=0.1
+    )
+    app._dispatch_pointer_intents(
+        [pinched_hand], recognizer, cursor_mapper, action_mapper, presence, timestamp_s=0.2
+    )
+
+    assert [intent.kind for intent in action_mapper.intents] == [
+        IntentType.MOVE_CURSOR,
+        IntentType.CLICK_LEFT,
+    ]
+
+
+def test_pointer_dispatch_bridges_a_single_missed_frame() -> None:
+    """One empty detection must not drop the pointer or arm a second click."""
+    action_mapper = _RecordingActionMapper()
+    recognizer = app.PointerGestureRecognizer()
+    cursor_mapper = app.CursorMapper(101, 101, edge_margin=0.0)
+    presence = app.HandPresenceHold(hold_s=0.12)
+    open_hand = _hand(Landmark(0.8, 0.5, 0.0), Landmark(0.0, 0.5, 0.0))
+    pinched_hand = _hand(Landmark(0.2, 0.5, 0.0), Landmark(0.15, 0.5, 0.0))
+
+    app._dispatch_pointer_intents(
+        [open_hand], recognizer, cursor_mapper, action_mapper, presence, timestamp_s=0.0
+    )
+    app._dispatch_pointer_intents(
+        [pinched_hand], recognizer, cursor_mapper, action_mapper, presence, timestamp_s=0.05
+    )
+    app._dispatch_pointer_intents(
+        [], recognizer, cursor_mapper, action_mapper, presence, timestamp_s=0.10
+    )
+    app._dispatch_pointer_intents(
+        [pinched_hand], recognizer, cursor_mapper, action_mapper, presence, timestamp_s=0.16
+    )
 
     assert [intent.kind for intent in action_mapper.intents] == [
         IntentType.MOVE_CURSOR,
@@ -126,8 +161,9 @@ def test_run_debug_overlay_returns_one_when_camera_unavailable(
             device_index: int = 0,
             width: int | None = None,
             height: int | None = None,
+            drop_stale_frames: bool = False,
         ) -> None:
-            del device_index, width, height
+            del device_index, width, height, drop_stale_frames
 
         def __enter__(self) -> _FakeUnavailableCamera:
             raise CameraUnavailableError("no camera in this test environment")

@@ -16,7 +16,11 @@ import cv2
 from gesture_control import __version__
 from gesture_control.actions import ActionMapper, Intent, IntentType
 from gesture_control.backends.macos import MacOSInputBackend, SafePauseHotkey
-from gesture_control.gestures.cursor import CursorMapper, PointerGestureRecognizer
+from gesture_control.gestures.cursor import (
+    CursorMapper,
+    HandPresenceHold,
+    PointerGestureRecognizer,
+)
 from gesture_control.vision.camera import Camera, CameraUnavailableError
 from gesture_control.vision.geometry import HandObservation
 from gesture_control.vision.hand_landmarker import HandLandmarkerService
@@ -24,8 +28,18 @@ from gesture_control.vision.overlay import draw_hand_landmarks
 
 _DEBUG_WINDOW_TITLE = "gesture-control debug (press 'q' to quit)"
 _QUIT_KEY = ord("q")
-_CONTROL_CAPTURE_WIDTH = 640
-_CONTROL_CAPTURE_HEIGHT = 480
+# Palm detection cost grows with the frame area. 320x240 is enough for
+# normalized landmarks and keeps the control loop closer to camera rate.
+_CONTROL_CAPTURE_WIDTH = 320
+_CONTROL_CAPTURE_HEIGHT = 240
+# Below the default 0.5 so a brief confidence dip keeps tracking instead of
+# falling back to a full-frame search, which is the frame where the cursor
+# freezes.
+_CONTROL_MIN_PRESENCE_CONFIDENCE = 0.3
+_CONTROL_MIN_TRACKING_CONFIDENCE = 0.3
+# The debug window is for the operator. Drawing and presenting it on every
+# inference frame stalls the pointer behind the hand.
+_CONTROL_PREVIEW_INTERVAL_S = 1.0 / 20.0
 
 
 def build_arg_parser() -> argparse.ArgumentParser:
@@ -89,18 +103,27 @@ def run_debug_overlay(camera_index: int = 0, control: bool = False) -> int:
                     device_index=camera_index,
                     width=_CONTROL_CAPTURE_WIDTH if control else None,
                     height=_CONTROL_CAPTURE_HEIGHT if control else None,
+                    drop_stale_frames=control,
                 )
             )
-            landmarker = stack.enter_context(HandLandmarkerService(num_hands=1 if control else 2))
+            landmarker = stack.enter_context(
+                HandLandmarkerService(
+                    num_hands=1 if control else 2,
+                    min_presence_confidence=(_CONTROL_MIN_PRESENCE_CONFIDENCE if control else 0.5),
+                    min_tracking_confidence=(_CONTROL_MIN_TRACKING_CONFIDENCE if control else 0.5),
+                )
+            )
             action_mapper: ActionMapper | None = None
             cursor_mapper: CursorMapper | None = None
             pointer_recognizer: PointerGestureRecognizer | None = None
+            presence_hold: HandPresenceHold | None = None
             if control:
                 backend = MacOSInputBackend()
                 screen_width, screen_height = backend.screen_size()
                 action_mapper = ActionMapper(backend)
                 cursor_mapper = CursorMapper(screen_width, screen_height)
                 pointer_recognizer = PointerGestureRecognizer()
+                presence_hold = HandPresenceHold()
                 stack.enter_context(
                     SafePauseHotkey(
                         backend.safe_pause,
@@ -111,22 +134,31 @@ def run_debug_overlay(camera_index: int = 0, control: bool = False) -> int:
                 )
                 print("Input enabled. Press Ctrl+Option+Command+P to pause or resume.")
             print(f"Debug window open ('{_DEBUG_WINDOW_TITLE}'). Press 'q' to quit.")
+            preview_interval_s = _CONTROL_PREVIEW_INTERVAL_S if control else 0.0
+            next_preview_at_s = 0.0
             while True:
                 frame = camera.read_frame()
                 hands = landmarker.detect(frame)
-                draw_hand_landmarks(frame, hands)
+                # Move the pointer before any drawing. The overlay is not on
+                # the path that has to stay in time with the hand.
                 if (
                     action_mapper is not None
                     and cursor_mapper is not None
                     and pointer_recognizer is not None
+                    and presence_hold is not None
                 ):
                     _dispatch_pointer_intents(
                         hands,
                         pointer_recognizer,
                         cursor_mapper,
                         action_mapper,
+                        presence_hold,
                     )
-                cv2.imshow(_DEBUG_WINDOW_TITLE, frame)
+                now_s = time.monotonic()
+                if now_s >= next_preview_at_s:
+                    draw_hand_landmarks(frame, hands)
+                    cv2.imshow(_DEBUG_WINDOW_TITLE, frame)
+                    next_preview_at_s = now_s + preview_interval_s
                 if cv2.waitKey(1) & 0xFF == _QUIT_KEY:
                     break
     except CameraUnavailableError as exc:
@@ -166,24 +198,29 @@ def _dispatch_pointer_intents(
     pointer_recognizer: PointerGestureRecognizer,
     cursor_mapper: CursorMapper,
     action_mapper: ActionMapper,
+    presence_hold: HandPresenceHold,
+    timestamp_s: float | None = None,
 ) -> None:
-    """Map the most confidently detected hand into M2 cursor intents.
+    """Map the tracked hand into M2 cursor intents.
 
     Args:
         hands: Hand observations from the current camera frame.
         pointer_recognizer: Stateful pinch recognizer.
         cursor_mapper: Stateful cursor smoothing mapper.
         action_mapper: Shared intent dispatch boundary.
+        presence_hold: Bridges single-frame detection drops.
+        timestamp_s: Sample time in seconds. Defaults to a monotonic clock.
     """
-    if not hands:
+    now_s = time.monotonic() if timestamp_s is None else timestamp_s
+    selected_hand = presence_hold.select(hands, now_s)
+    if selected_hand is None:
         pointer_recognizer.reset()
         return
-    selected_hand = max(hands, key=lambda hand: hand.score)
     pointer = pointer_recognizer.recognize(selected_hand)
     # Freeze the last stable pointer target while pinched so fingertip jitter
     # cannot move a target out from under the click.
     if not pointer.is_pinching:
-        x, y = cursor_mapper.map(pointer.x, pointer.y, time.monotonic())
+        x, y = cursor_mapper.map(pointer.x, pointer.y, now_s)
         action_mapper.dispatch(Intent(IntentType.MOVE_CURSOR, x=x, y=y))
     if pointer.pinch_started:
         action_mapper.dispatch(Intent(IntentType.CLICK_LEFT))

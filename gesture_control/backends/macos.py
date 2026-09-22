@@ -34,6 +34,7 @@ class MacOSInputBackend(InputBackend):
 
         self._mouse = mouse.Controller()
         self._left_button = mouse.Button.left
+        self._last_position: tuple[int, int] | None = None
 
     def screen_size(self) -> tuple[int, int]:
         """Return the primary screen dimensions in pixels."""
@@ -44,8 +45,15 @@ class MacOSInputBackend(InputBackend):
 
     def move_to(self, x: int, y: int) -> None:
         """Move the pointer if the safe-pause gate permits input injection."""
-        if not self.safe_pause.is_paused:
-            self._mouse.position = (x, y)
+        if self.safe_pause.is_paused:
+            return
+        # pynput writes the pointer through the window server. Repeating the
+        # same coordinate every frame, which happens while the hand is still,
+        # adds avoidable latency jitter to the next real move.
+        if self._last_position == (x, y):
+            return
+        self._mouse.position = (x, y)
+        self._last_position = (x, y)
 
     def click_left(self) -> None:
         """Click the primary mouse button if the safe-pause gate permits it."""

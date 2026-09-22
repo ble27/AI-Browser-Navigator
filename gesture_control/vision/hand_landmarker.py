@@ -41,6 +41,11 @@ class HandLandmarkerService:
         num_hands: Maximum number of hands to detect simultaneously.
         min_detection_confidence: Minimum confidence, in ``[0, 1]``, for the
             initial palm detection.
+        min_presence_confidence: Minimum confidence that a hand is still
+            present. Falling below this restarts palm detection, which is
+            much slower than tracking and drops the pointer for that frame.
+        min_tracking_confidence: Minimum confidence to keep tracking the
+            previous hand instead of searching the whole frame again.
         use_gpu: Whether to request MediaPipe's GPU delegate. Defaults to
             ``False`` (CPU delegate) because GPU delegate backends differ
             per platform (Metal on macOS, OpenGL/Vulkan elsewhere) and are
@@ -55,6 +60,8 @@ class HandLandmarkerService:
         model_path: Path | None = None,
         num_hands: int = 2,
         min_detection_confidence: float = 0.5,
+        min_presence_confidence: float = 0.5,
+        min_tracking_confidence: float = 0.5,
         use_gpu: bool = False,
     ) -> None:
         """Load the model bundle and initialize the underlying MediaPipe task graph."""
@@ -65,12 +72,15 @@ class HandLandmarkerService:
             running_mode=vision.RunningMode.VIDEO,
             num_hands=num_hands,
             min_hand_detection_confidence=min_detection_confidence,
+            min_hand_presence_confidence=min_presence_confidence,
+            min_tracking_confidence=min_tracking_confidence,
         )
         self._landmarker = vision.HandLandmarker.create_from_options(options)
         # MediaPipe's VIDEO mode requires strictly increasing millisecond
         # timestamps; anchor to process start rather than wall-clock epoch
         # so values stay small and monotonic for the lifetime of the service.
         self._start_time = time.monotonic()
+        self._last_timestamp_ms = -1
 
     def detect(self, frame_bgr: np.ndarray) -> list[HandObservation]:
         """Detect hands in a single BGR video frame.
@@ -85,6 +95,11 @@ class HandLandmarkerService:
         frame_rgb = cv2.cvtColor(frame_bgr, cv2.COLOR_BGR2RGB)
         mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=frame_rgb)
         timestamp_ms = int((time.monotonic() - self._start_time) * 1000)
+        # Two detects in the same millisecond would violate VIDEO mode and
+        # raise. Bump by one so a fast loop cannot stall the tracker.
+        if timestamp_ms <= self._last_timestamp_ms:
+            timestamp_ms = self._last_timestamp_ms + 1
+        self._last_timestamp_ms = timestamp_ms
         result = self._landmarker.detect_for_video(mp_image, timestamp_ms)
         return _to_hand_observations(result)
 

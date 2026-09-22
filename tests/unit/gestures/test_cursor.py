@@ -3,7 +3,11 @@
 from __future__ import annotations
 
 import pytest
-from gesture_control.gestures.cursor import CursorMapper, PointerGestureRecognizer
+from gesture_control.gestures.cursor import (
+    CursorMapper,
+    HandPresenceHold,
+    PointerGestureRecognizer,
+)
 from gesture_control.vision.geometry import HandLandmarkIndex, HandObservation, Landmark
 
 
@@ -15,6 +19,16 @@ def _hand(index_tip: Landmark, thumb_tip: Landmark) -> HandObservation:
     landmarks[HandLandmarkIndex.INDEX_FINGER_TIP] = index_tip
     landmarks[HandLandmarkIndex.THUMB_TIP] = thumb_tip
     return HandObservation(tuple(landmarks), "Right", 0.99)
+
+
+def test_presence_hold_bridges_a_short_gap_then_releases() -> None:
+    """A missed frame keeps the last hand; a longer gap clears it."""
+    hold = HandPresenceHold(hold_s=0.12)
+    hand = _hand(Landmark(0.4, 0.4, 0.0), Landmark(0.1, 0.4, 0.0))
+
+    assert hold.select([hand], 1.0) is hand
+    assert hold.select([], 1.1) is hand
+    assert hold.select([], 1.2) is None
 
 
 def test_recognizer_emits_one_event_for_each_pinch() -> None:

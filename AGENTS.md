@@ -3,13 +3,14 @@
 This file is the fast-path for any AI coding agent (or human) picking up this
 repo cold. Read this before touching code.
 
-> Status: M0 (repo scaffold) and M1 (camera + hand-landmark pipeline) have
-> landed and pass `scripts/check.sh`. A real mediapipe==1.0.x crash was
-> found and fixed by pinning `mediapipe>=0.10.30,<0.11` (see
-> `docs/KNOWN_ISSUES.md`); model/inference correctness is confirmed via
+> Status: M0 (repo scaffold), M1 (camera + hand-landmark pipeline), and M2
+> (macOS virtual mouse: cursor, pinch click, safe-pause) have landed and pass
+> `scripts/check.sh`. A real mediapipe==1.0.x crash was found and fixed by
+> pinning `mediapipe>=0.10.30,<0.11` (see `docs/KNOWN_ISSUES.md`);
+> model/inference correctness is confirmed via
 > `tests/manual/verify_hand_landmarker.py`, and the live-camera path is
-> pending one more confirmation pass (see `docs/QA_CHECKLISTS.md`). Feature
-> code for gestures/actions/backends/voice starts at M2.
+> pending one more confirmation pass (see `docs/QA_CHECKLISTS.md`). The wider
+> gesture vocabulary and voice start at M3.
 
 ## What this project is
 

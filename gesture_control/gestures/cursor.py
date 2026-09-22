@@ -116,6 +116,62 @@ class PointerGestureRecognizer:
         self._pinching = False
 
 
+class HandPresenceHold:
+    """Keep the last hand through a brief detection gap.
+
+    A single missed frame used to clear pinch state and stop the pointer.
+    Holding the previous observation for a short time bridges that gap so
+    the cursor does not freeze and a held pinch does not click again when
+    the hand reappears.
+    """
+
+    def __init__(self, hold_s: float = 0.12) -> None:
+        """Create a hold with no hand seen yet.
+
+        Args:
+            hold_s: How long a missing hand may be replaced by the previous
+                observation. Must be non-negative.
+
+        Raises:
+            ValueError: If ``hold_s`` is negative.
+        """
+        if hold_s < 0.0:
+            raise ValueError("hold_s must be non-negative.")
+        self._hold_s = hold_s
+        self._last_hand: HandObservation | None = None
+        self._last_timestamp_s: float | None = None
+
+    def select(
+        self,
+        hands: list[HandObservation],
+        timestamp_s: float,
+    ) -> HandObservation | None:
+        """Choose the hand to track, or the recent one if this frame missed.
+
+        Args:
+            hands: Hands detected in the current frame, possibly empty.
+            timestamp_s: Sample time in seconds, from a monotonic clock.
+
+        Returns:
+            The highest-scoring current hand, the held hand during a short
+            gap, or ``None`` once the gap is longer than ``hold_s``.
+        """
+        if hands:
+            selected = max(hands, key=lambda hand: hand.score)
+            self._last_hand = selected
+            self._last_timestamp_s = timestamp_s
+            return selected
+        if (
+            self._last_hand is not None
+            and self._last_timestamp_s is not None
+            and timestamp_s - self._last_timestamp_s <= self._hold_s
+        ):
+            return self._last_hand
+        self._last_hand = None
+        self._last_timestamp_s = None
+        return None
+
+
 class CursorMapper:
     """Map normalized gesture coordinates to a low-latency screen position."""
 

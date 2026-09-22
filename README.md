@@ -6,8 +6,9 @@ tool built with Python, OpenCV, and MediaPipe, with accessibility as a
 first-class use case.
 
 > Status: M0 (scaffold), M1 (camera + hand-landmark debug overlay), and M2
-> (macOS virtual mouse) are implemented and unit-tested. M2 awaits its final
-> hardware verification pass.
+> (macOS virtual mouse) are implemented and unit-tested. Cursor control keeps
+> the newest camera frame and filters the fingertip so the pointer stays with
+> the hand. M2 awaits its final hardware verification pass.
 
 - Full product requirements: [`docs/PRD.md`](docs/PRD.md)
 - Contributor / AI-agent onboarding: [`AGENTS.md`](AGENTS.md)
