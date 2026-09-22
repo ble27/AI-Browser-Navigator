@@ -12,3 +12,7 @@ keys, switch applications, ...) and provides one adapter per platform:
 Every adapter MUST respect the global safe-pause state before injecting any
 input -- see the safety-critical invariant in ``AGENTS.md``.
 """
+
+from gesture_control.backends.base import InputBackend, SafePause
+
+__all__ = ["InputBackend", "SafePause"]

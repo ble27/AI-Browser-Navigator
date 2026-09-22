@@ -26,12 +26,15 @@ milestone's commit/tag is considered done.
 
 ## M2 — Virtual mouse v1
 
+- [ ] With Terminal granted macOS Accessibility permission, `python -m
+      gesture_control.app --debug --control` starts without an input-backend
+      permission error.
 - [ ] Moving the index fingertip moves the on-screen cursor smoothly (no
       jitter, no runaway drift).
 - [ ] A pinch (thumb + index) reliably registers as a single click on a
       real target (e.g., a Dock icon).
 - [ ] The safe-pause global hotkey immediately stops all cursor/click
-      injection, verified while actively gesturing.
+      injection while actively gesturing, and a second press resumes it.
 - [ ] Releasing the pinch does not produce a spurious extra click.
 
 ## M3 — Gesture vocabulary

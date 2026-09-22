@@ -5,8 +5,9 @@ local-first, cross-platform (macOS/Windows/Linux) virtual mouse and navigation
 tool built with Python, OpenCV, and MediaPipe, with accessibility as a
 first-class use case.
 
-> Status: M0 (scaffold) and M1 (camera + hand-landmark debug overlay) are
-> implemented and unit-tested. Cursor/keyboard control itself starts at M2.
+> Status: M0 (scaffold), M1 (camera + hand-landmark debug overlay), and M2
+> (macOS virtual mouse) are implemented and unit-tested. M2 awaits its final
+> hardware verification pass.
 
 - Full product requirements: [`docs/PRD.md`](docs/PRD.md)
 - Contributor / AI-agent onboarding: [`AGENTS.md`](AGENTS.md)
@@ -35,8 +36,16 @@ Options:
 
 ```bash
 python -m gesture_control.app --debug --camera-index 1   # use a non-default webcam
+python -m gesture_control.app --debug --control           # enable macOS cursor + pinch click
 python -m gesture_control.app --version
 ```
+
+`--control` is explicit because it injects input. On macOS, grant the
+launching terminal **Accessibility** permission in **System Settings > Privacy
+& Security > Accessibility**. Move the index fingertip to move the pointer;
+touch the thumb and index fingertips together once to click. Press
+**Control+Option+Command+P** at any time to pause or resume all injected
+input.
 
 ## Why one toolkit works across macOS/Windows/Linux
 
@@ -47,7 +56,12 @@ architecture diagram in [`docs/PRD.md`](docs/PRD.md#6-cross-platform-architectur
 
 ## Gesture cheat-sheet
 
-_Populated starting at milestone M2/M3 as gestures ship._
+- Move index fingertip: move cursor.
+- Thumb-index pinch: left-click.
+- Control+Option+Command+P: pause/resume all injected input.
+
+Double-click, right-click, drag, scrolling, fist pause, and navigation
+gestures are scheduled for M3.
 
 ## Safety
 

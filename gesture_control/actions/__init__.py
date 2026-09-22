@@ -7,3 +7,7 @@ or more calls on the :class:`gesture_control.backends.InputBackend`
 interface. No caller outside this package should ever call an
 ``InputBackend`` directly.
 """
+
+from gesture_control.actions.mapper import ActionMapper, Intent, IntentType
+
+__all__ = ["ActionMapper", "Intent", "IntentType"]
