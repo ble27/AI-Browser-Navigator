@@ -3,15 +3,18 @@
 This file is the fast-path for any AI coding agent (or human) picking up this
 repo cold. Read this before touching code.
 
-> Status: M0 (repo scaffold) has landed. Package skeleton, tooling config, and
-> scripts described below exist and pass `scripts/check.sh`. Feature code
-> (vision/gestures/actions/backends/voice bodies) starts at M1.
+> Status: M0 (repo scaffold) and M1 (camera + hand-landmark pipeline) have
+> landed and pass `scripts/check.sh`. M1's live-camera path has **not** been
+> manually confirmed yet -- see `docs/KNOWN_ISSUES.md`. Feature code for
+> gestures/actions/backends/voice starts at M2.
 
 ## What this project is
 
 A local-first, offline, cross-platform (macOS/Windows/Linux) tool that lets a
 user control mouse/keyboard/navigation using webcam-tracked hand gestures
 and/or offline voice commands. Full product context: [`docs/PRD.md`](docs/PRD.md).
+Known environment gotchas (read before debugging a crash):
+[`docs/KNOWN_ISSUES.md`](docs/KNOWN_ISSUES.md).
 
 ## One-command setup
 

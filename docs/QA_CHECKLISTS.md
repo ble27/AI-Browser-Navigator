@@ -7,6 +7,14 @@ milestone's commit/tag is considered done.
 
 ## M1 — Camera + hand landmark pipeline
 
+> **Not yet confirmed by a human.** Live MediaPipe inference could not be
+> verified in the automated agent shell used to build this milestone -- it
+> hit a native crash that looks environment-specific (no GUI/Metal session
+> available to that shell tool). See
+> [`docs/KNOWN_ISSUES.md`](KNOWN_ISSUES.md#mediapipe-handlandmarker-may-abort-on-some-macos-setups-even-with-the-cpu-delegate)
+> for the full writeup. **Please run through this checklist yourself** and
+> update `KNOWN_ISSUES.md` with the result either way.
+
 - [ ] `python -m gesture_control.app --debug` opens a window showing the live
       webcam feed.
 - [ ] A detected hand shows all 21 MediaPipe landmarks overlaid, updating at an

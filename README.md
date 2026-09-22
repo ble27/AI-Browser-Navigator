@@ -5,22 +5,37 @@ local-first, cross-platform (macOS/Windows/Linux) virtual mouse and navigation
 tool built with Python, OpenCV, and MediaPipe, with accessibility as a
 first-class use case.
 
-> Status: pre-implementation. This README describes the target quickstart; it
-> will be filled in with real, tested commands starting at milestone M0.
+> Status: M0 (scaffold) and M1 (camera + hand-landmark debug overlay) are
+> implemented and unit-tested. Cursor/keyboard control itself starts at M2.
 
 - Full product requirements: [`docs/PRD.md`](docs/PRD.md)
 - Contributor / AI-agent onboarding: [`AGENTS.md`](AGENTS.md)
 - Manual QA checklists: [`docs/QA_CHECKLISTS.md`](docs/QA_CHECKLISTS.md)
 - Deferred work / backlog: [`docs/BACKLOG.md`](docs/BACKLOG.md)
+- Known issues / environment gotchas: [`docs/KNOWN_ISSUES.md`](docs/KNOWN_ISSUES.md)
 
-## Quickstart (target, once M0 lands)
+## Quickstart
 
 ```bash
 git clone <repo-url>
 cd AI-Gestures-Tool
 ./scripts/setup_env.sh
 source .venv/bin/activate
-python -m gesture_control.app --debug
+python -m gesture_control.app --debug   # opens a webcam window with a hand-landmark overlay
+```
+
+The first `--debug` run downloads the MediaPipe HandLandmarker model
+(~8 MB, cached under `models/`). If the download fails with an SSL error, or
+the debug window crashes on launch, see
+[`docs/KNOWN_ISSUES.md`](docs/KNOWN_ISSUES.md) before assuming your setup is
+broken -- both a real, fixable gotcha and an unresolved
+environment-specific crash are documented there.
+
+Options:
+
+```bash
+python -m gesture_control.app --debug --camera-index 1   # use a non-default webcam
+python -m gesture_control.app --version
 ```
 
 ## Why one toolkit works across macOS/Windows/Linux
