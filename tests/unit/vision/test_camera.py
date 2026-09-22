@@ -9,6 +9,7 @@ from __future__ import annotations
 
 from typing import ClassVar
 
+import cv2
 import numpy as np
 import pytest
 from gesture_control.vision import camera as camera_module
@@ -21,8 +22,9 @@ class _FakeVideoCapture:
     opens_successfully: ClassVar[bool] = True
     frames_to_return: ClassVar[list[np.ndarray | None]] = []
 
-    def __init__(self, device_index: int) -> None:
+    def __init__(self, device_index: int, backend: int | None = None) -> None:
         self.device_index = device_index
+        self.backend = backend
         self.released = False
         self._frame_queue = list(self.frames_to_return)
         self.props: dict[int, float] = {}
@@ -62,6 +64,19 @@ def test_camera_open_raises_when_device_cannot_be_opened(
         Camera(device_index=0).open()
 
 
+def test_camera_uses_avfoundation_on_macos(monkeypatch: pytest.MonkeyPatch) -> None:
+    """macOS cameras should use the native AVFoundation capture backend."""
+    monkeypatch.setattr(camera_module.platform, "system", lambda: "Darwin")
+    monkeypatch.setattr(camera_module.cv2, "VideoCapture", _FakeVideoCapture)
+
+    camera = Camera(device_index=2).open()
+
+    assert isinstance(camera._capture, _FakeVideoCapture)
+    assert camera._capture.device_index == 2
+    assert camera._capture.backend == cv2.CAP_AVFOUNDATION
+    camera.close()
+
+
 def test_camera_read_frame_before_open_raises_runtime_error() -> None:
     """Calling read_frame() before open()/__enter__() is a programming error, not a hardware one."""
     camera = Camera(device_index=0)
@@ -92,4 +107,19 @@ def test_camera_read_frame_raises_when_read_fails(monkeypatch: pytest.MonkeyPatc
 
     with Camera(device_index=0) as camera:
         with pytest.raises(CameraUnavailableError, match="Failed to read a frame"):
+            camera.read_frame()
+
+
+def test_camera_read_frame_raises_after_persistently_black_frames(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A black camera stream should produce actionable troubleshooting guidance."""
+    black_frame = np.zeros((4, 4, 3), dtype=np.uint8)
+    _FakeVideoCapture.frames_to_return = [black_frame] * 30
+    monkeypatch.setattr(camera_module.cv2, "VideoCapture", _FakeVideoCapture)
+
+    with Camera(device_index=0) as camera:
+        for _ in range(29):
+            assert camera.read_frame() is black_frame
+        with pytest.raises(CameraUnavailableError, match="returned only black frames"):
             camera.read_frame()

@@ -6,7 +6,21 @@ fixing commit) once it's actually fixed; don't delete history.
 
 ## Open
 
-(none currently -- see Resolved below)
+### Debug window opens but the preview is entirely black on macOS
+
+**Symptom**: `python -m gesture_control.app --debug` opens its debug window,
+but the preview has no visible camera image.
+
+**Mitigation**: Camera capture now prefers OpenCV's native AVFoundation backend
+on macOS. If the app exits with a "returned only black frames" message, check
+that the lens is uncovered, close any other app using the camera, grant the
+launching terminal Camera permission in **System Settings > Privacy & Security
+> Camera**, then retry. For an external camera, try another device with
+`python -m gesture_control.app --debug --camera-index 1`.
+
+**Verification pending**: this requires a physical webcam in the affected
+macOS session. The camera unit tests cover backend selection and the
+all-black-stream diagnostic, but cannot verify hardware availability.
 
 ## Resolved
 

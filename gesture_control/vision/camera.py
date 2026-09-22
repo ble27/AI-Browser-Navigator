@@ -7,10 +7,14 @@ place to be found and fixed.
 
 from __future__ import annotations
 
+import platform
 from types import TracebackType
 
 import cv2
 import numpy as np
+
+_MAX_CONSECUTIVE_BLACK_FRAMES = 30
+_BLACK_FRAME_MAX_PIXEL_VALUE = 2
 
 
 class CameraUnavailableError(RuntimeError):
@@ -43,6 +47,7 @@ class Camera:
         self._width = width
         self._height = height
         self._capture: cv2.VideoCapture | None = None
+        self._consecutive_black_frames = 0
 
     def open(self) -> Camera:
         """Open the underlying camera device.
@@ -56,7 +61,7 @@ class Camera:
                 webcam is connected, another process holds it, or (on
                 macOS) the app has not been granted Camera permission.
         """
-        capture = cv2.VideoCapture(self._device_index)
+        capture = _open_capture(self._device_index)
         if not capture.isOpened():
             capture.release()
             raise CameraUnavailableError(
@@ -94,6 +99,17 @@ class Camera:
                 "Failed to read a frame from the camera; it may have been "
                 "disconnected or released by another process."
             )
+        if int(frame.max()) <= _BLACK_FRAME_MAX_PIXEL_VALUE:
+            self._consecutive_black_frames += 1
+            if self._consecutive_black_frames >= _MAX_CONSECUTIVE_BLACK_FRAMES:
+                raise CameraUnavailableError(
+                    "The camera returned only black frames. Check that the camera lens is "
+                    "uncovered, no other app is using it, and this terminal has Camera "
+                    "permission (macOS: System Settings > Privacy & Security > Camera). "
+                    "If you have multiple cameras, try --camera-index 1."
+                )
+        else:
+            self._consecutive_black_frames = 0
         return frame
 
     def close(self) -> None:
@@ -101,6 +117,7 @@ class Camera:
         if self._capture is not None:
             self._capture.release()
             self._capture = None
+        self._consecutive_black_frames = 0
 
     def __enter__(self) -> Camera:
         """Open the camera on entering a ``with`` block. See :meth:`open`."""
@@ -114,3 +131,24 @@ class Camera:
     ) -> None:
         """Release the camera on leaving a ``with`` block, even if an exception occurred."""
         self.close()
+
+
+def _open_capture(device_index: int) -> cv2.VideoCapture:
+    """Open a camera using the platform's most reliable backend.
+
+    macOS's generic backend can open a camera but return a black stream. Prefer
+    AVFoundation there, while retaining OpenCV's default backend as a fallback
+    for devices unsupported by AVFoundation.
+
+    Args:
+        device_index: OS camera device index to open.
+
+    Returns:
+        An OpenCV capture object. The caller owns releasing it.
+    """
+    if platform.system() == "Darwin":
+        capture = cv2.VideoCapture(device_index, cv2.CAP_AVFOUNDATION)
+        if capture.isOpened():
+            return capture
+        capture.release()
+    return cv2.VideoCapture(device_index)
