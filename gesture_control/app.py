@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import argparse
 import sys
+import time
 from contextlib import ExitStack
 
 import cv2
@@ -182,7 +183,7 @@ def _dispatch_pointer_intents(
     # Freeze the last stable pointer target while pinched so fingertip jitter
     # cannot move a target out from under the click.
     if not pointer.is_pinching:
-        x, y = cursor_mapper.map(pointer.x, pointer.y)
+        x, y = cursor_mapper.map(pointer.x, pointer.y, time.monotonic())
         action_mapper.dispatch(Intent(IntentType.MOVE_CURSOR, x=x, y=y))
     if pointer.pinch_started:
         action_mapper.dispatch(Intent(IntentType.CLICK_LEFT))

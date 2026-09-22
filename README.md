@@ -56,7 +56,8 @@ architecture diagram in [`docs/PRD.md`](docs/PRD.md#6-cross-platform-architectur
 
 ## Gesture cheat-sheet
 
-- Move index fingertip: move cursor.
+- Move index fingertip: move cursor. The pointer uses a low-latency filter
+  and reaches the screen edges from the center of the camera view.
 - Thumb-index pinch: left-click.
 - Control+Option+Command+P: pause/resume all injected input.
 

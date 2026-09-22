@@ -39,29 +39,74 @@ def test_recognizer_clamps_pointer_coordinates() -> None:
     assert (pointer.x, pointer.y) == (1.0, 0.0)
 
 
-def test_cursor_mapper_smooths_toward_target() -> None:
-    """Cursor smoothing should move partway toward a changed fingertip target."""
-    mapper = CursorMapper(101, 101, smoothing=0.4)
+def test_cursor_mapper_follows_a_fast_swipe_without_trailing() -> None:
+    """A quick fingertip move should land near the target within one sample gap."""
+    mapper = CursorMapper(1001, 1001, edge_margin=0.0)
 
-    assert mapper.map(1.0, 0.0) == (0, 0)
-    assert mapper.map(0.0, 1.0) == (40, 40)
+    assert mapper.map(1.0, 0.0, 0.0) == (0, 0)
+    x, y = mapper.map(0.0, 1.0, 0.10)
+
+    # A fixed 0.4 exponential smoother would still be near (400, 400) here.
+    assert x > 750
+    assert y > 750
+
+
+def test_cursor_mapper_holds_still_while_the_fingertip_jitters() -> None:
+    """Landmark noise around a resting fingertip must not hunt the cursor."""
+    mapper = CursorMapper(1920, 1080, edge_margin=0.0)
+    positions = [
+        mapper.map(
+            0.5 + (0.004 if index % 2 == 0 else -0.004),
+            0.5 + (0.003 if index % 2 == 0 else -0.003),
+            index / 30.0,
+        )
+        for index in range(45)
+    ]
+
+    assert positions[1:] == [positions[0]] * (len(positions) - 1)
+
+
+def test_cursor_mapper_tracks_a_steady_drift() -> None:
+    """Motion that leaves the resting radius should keep updating, not stair-step."""
+    mapper = CursorMapper(1001, 1001, edge_margin=0.0)
+    positions = [mapper.map(index / 30.0 * 0.25, 0.5, index / 30.0)[0] for index in range(31)]
+
+    assert positions[0] == 1000
+    assert positions[-1] < 820
+    assert positions[-1] < positions[0] - 100
+
+
+def test_cursor_mapper_still_follows_a_slow_move() -> None:
+    """The resting deadzone must not pin the cursor during a deliberate drift."""
+    mapper = CursorMapper(1001, 1001, edge_margin=0.0)
+    mapper.map(1.0, 0.5, 0.0)
+    x, _y = mapper.map(0.7, 0.5, 0.5)
+
+    assert x > 200
 
 
 def test_cursor_mapper_mirrors_the_camera_x_axis() -> None:
     """A hand moving left in a selfie view must move the cursor left."""
-    mapper = CursorMapper(101, 101, smoothing=1.0)
+    mapper = CursorMapper(101, 101, edge_margin=0.0)
 
-    assert mapper.map(1.0, 0.5) == (0, 50)
-    assert mapper.map(0.0, 0.5) == (100, 50)
+    assert mapper.map(1.0, 0.5, 0.0) == (0, 50)
+    assert mapper.map(0.0, 0.5, 0.05) == (100, 50)
+
+
+def test_cursor_mapper_uses_an_inset_active_region() -> None:
+    """A fingertip inside the camera, not on its edge, should reach the screen edge."""
+    mapper = CursorMapper(101, 101, edge_margin=0.2)
+
+    assert mapper.map(0.2, 0.2, 0.0) == (100, 0)
 
 
 @pytest.mark.parametrize(
-    ("width", "height", "smoothing"),
-    [(0, 1, 0.5), (1, 0, 0.5), (1, 1, 0.0), (1, 1, 1.1)],
+    ("width", "height", "edge_margin"),
+    [(0, 1, 0.0), (1, 0, 0.0), (10, 10, -0.1), (10, 10, 0.5)],
 )
 def test_cursor_mapper_rejects_invalid_configuration(
-    width: int, height: int, smoothing: float
+    width: int, height: int, edge_margin: float
 ) -> None:
-    """Invalid dimensions or smoothing factors should fail at configuration time."""
+    """Invalid dimensions or an active-region inset should fail at configuration time."""
     with pytest.raises(ValueError):
-        CursorMapper(width, height, smoothing)
+        CursorMapper(width, height, edge_margin=edge_margin)

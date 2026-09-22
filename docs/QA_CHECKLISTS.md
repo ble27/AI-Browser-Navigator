@@ -29,8 +29,9 @@ milestone's commit/tag is considered done.
 - [ ] With Terminal granted macOS Accessibility permission, `python -m
       gesture_control.app --debug --control` starts without an input-backend
       permission error.
-- [ ] Moving the index fingertip moves the on-screen cursor smoothly (no
-      jitter, no runaway drift).
+- [ ] Moving the index fingertip moves the on-screen cursor smoothly and
+      stays close to the hand in time (no multi-frame trail, no jitter, no
+      runaway drift, no single-pixel hunting while the hand is held still).
 - [ ] A pinch (thumb + index) reliably registers as a single click on a
       real target (e.g., a Dock icon), without fingertip jitter moving the
       cursor while pinched.

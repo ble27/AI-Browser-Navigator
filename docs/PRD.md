@@ -100,8 +100,10 @@ flowchart TD
 
 ### 7.1 Virtual mouse / cursor (v1)
 
-- Map index-fingertip position to screen cursor position, with an
-  exponential-smoothing (or Kalman) filter to reduce jitter.
+- Map index-fingertip position to screen cursor position, with a 1€ filter
+  (low cutoff at rest, higher cutoff while moving) so jitter is removed
+  without lagging a real swipe. An inset active region maps the comfortable
+  center of the camera image onto the full screen.
 - Works with either hand automatically; optional hand-preference lock setting.
 - Click = pinch (thumb + index). Double-click = double-pinch within a time
   window. Right-click = pinch with middle finger. Drag = pinch-and-hold + move.

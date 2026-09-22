@@ -101,7 +101,7 @@ def test_pointer_dispatch_freezes_cursor_for_the_duration_of_a_pinch() -> None:
     """Pinching should click the established target without jittering away from it."""
     action_mapper = _RecordingActionMapper()
     recognizer = app.PointerGestureRecognizer()
-    cursor_mapper = app.CursorMapper(101, 101, smoothing=1.0)
+    cursor_mapper = app.CursorMapper(101, 101, edge_margin=0.0)
     open_hand = _hand(Landmark(0.8, 0.5, 0.0), Landmark(0.0, 0.5, 0.0))
     pinched_hand = _hand(Landmark(0.2, 0.5, 0.0), Landmark(0.15, 0.5, 0.0))
 
