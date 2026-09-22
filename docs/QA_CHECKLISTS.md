@@ -7,13 +7,15 @@ milestone's commit/tag is considered done.
 
 ## M1 — Camera + hand landmark pipeline
 
-> **Not yet confirmed by a human.** Live MediaPipe inference could not be
-> verified in the automated agent shell used to build this milestone -- it
-> hit a native crash that looks environment-specific (no GUI/Metal session
-> available to that shell tool). See
-> [`docs/KNOWN_ISSUES.md`](KNOWN_ISSUES.md#mediapipe-handlandmarker-may-abort-on-some-macos-setups-even-with-the-cpu-delegate)
-> for the full writeup. **Please run through this checklist yourself** and
-> update `KNOWN_ISSUES.md` with the result either way.
+> Model/inference correctness (camera-free) is confirmed via
+> `python tests/manual/verify_hand_landmarker.py` -- run this first if you
+> suspect a regression, since it isolates the model/graph from the camera
+> and reproduces the crash class documented in `docs/KNOWN_ISSUES.md`
+> without needing a webcam. The mediapipe==1.0.x crash reported against
+> `--debug` with a real camera has been root-caused and fixed (pinned to
+> `mediapipe>=0.10.30,<0.11`); **please re-run `--debug` once more** to
+> confirm the live camera loop itself is now fully clean end-to-end and
+> check off the items below.
 
 - [ ] `python -m gesture_control.app --debug` opens a window showing the live
       webcam feed.

@@ -6,7 +6,11 @@ fixing commit) once it's actually fixed; don't delete history.
 
 ## Open
 
-### MediaPipe HandLandmarker may abort on some macOS setups, even with the CPU delegate
+(none currently -- see Resolved below)
+
+## Resolved
+
+### MediaPipe HandLandmarker aborts with "Service is unavailable" on `mediapipe==1.0.0`/`1.0.1`
 
 **Symptom**: `HandLandmarkerService()` (or `HandLandmarker.create_from_options`
 directly) aborts the process with:
@@ -20,49 +24,40 @@ F0000 00:00:...  graph_service.h:139] Check failed: service_ Service is unavaila
     ...
 ```
 
-**What we know**: This was hit while verifying M1 in the automated agent
-sandbox used to build this repo (a non-interactive shell tool with no logged-in
-GUI/Aqua session). It reproduced:
-- With `mediapipe==1.0.1` via the Tasks API (`HandLandmarker`), with
-  `BaseOptions.Delegate.CPU` explicitly set (see
-  `gesture_control/vision/hand_landmarker.py`) -- did not help.
-- With the legacy `mediapipe.solutions.hands.Hands` API on `mediapipe==0.10.21`
-  (a version that still ships `solutions`) -- same class of crash.
-- Setting `MEDIAPIPE_DISABLE_GPU=1` did not help.
+**Confirmed real bug, not a sandbox artifact**: initially suspected to be
+specific to the automated agent sandbox used to build this repo (no GUI/Aqua
+session), but it was independently reproduced by a human running
+`python -m gesture_control.app --debug` directly in Terminal.app on the same
+machine, camera included (`zsh: abort python -m gesture_control.app --debug`).
+So this is a genuine `mediapipe` pip-wheel bug on this macOS/Apple Silicon
+setup, not an environment quirk.
 
-The crash is inside MediaPipe's native (compiled) code touching a Metal
-helper, which several public MediaPipe GitHub issues associate with GPU
-delegate/graph-service setup on macOS (e.g. google-ai-edge/mediapipe#5568,
-#5136, #5265) -- though in those reports, switching to the CPU delegate
-resolved it, which it did not in our sandbox. Our current hypothesis is that
-this specific automated shell environment has no GUI session for MediaPipe's
-Metal backend to attach to at all (unlike a normal interactive Terminal.app
-session), and some part of the graph touches Metal unconditionally
-regardless of the requested delegate.
+**Root cause isolated**: the crash happens at
+`HandLandmarker.create_from_options()` itself (graph construction), before
+any frame is even processed -- confirmed by reproducing it with a static
+test image in both `RunningMode.VIDEO` and `RunningMode.IMAGE`, and with
+`BaseOptions.Delegate.CPU` explicitly set. It is specific to
+`mediapipe==1.0.0`/`1.0.1`'s HandLandmarker task graph, which appears to
+unconditionally reference a GPU/Metal-related graph service regardless of
+the requested delegate. `mediapipe==0.10.35` (the last 0.10.x release, with
+the same numpy-2-compatible wheel) does **not** have this bug -- confirmed
+working end-to-end (camera-free) against a static test image: model
+download, `HandLandmarker.create_from_options`, `detect()`, and
+`draw_hand_landmarks()` all succeeded and produced a correct skeleton
+overlay for both hands.
 
-**What this means for you**: This has *not* been confirmed to reproduce in a
-normal interactive Terminal session on a real macOS machine. Before assuming
-your setup is broken:
+**Fix**: pinned `mediapipe>=0.10.30,<0.11` in `pyproject.toml` (see the
+comment there). Do not bump past `<0.11` without re-verifying this exact
+crash is gone -- rerun the manual smoke test in
+`tests/manual/verify_hand_landmarker.py` (or equivalent) against a static
+image first, since it reproduces immediately at graph construction and
+doesn't require a camera.
 
-1. Run `python -m gesture_control.app --debug` yourself from Terminal.app (or
-   iTerm, etc.) -- a real logged-in GUI session, not an SSH/CI/automation
-   shell.
-2. If it works there, this issue was specific to the automated verification
-   environment and can be downgraded to "resolved / environment-specific"
-   in this doc -- please update it.
-3. If it *also* crashes for you with the same stack trace, please capture the
-   full crash output plus `python --version`, `sw_vers`, and `uname -m`, and
-   file/update this issue -- it would then be a real, reproducible bug worth
-   investigating further (e.g. pinning a different `mediapipe` patch version,
-   or filing upstream).
-
-**Workaround to try if you hit this**: none confirmed yet. Candidates to try,
-in order: (a) a different `mediapipe` patch version, (b) running from a
-plain Terminal.app window rather than over SSH/tmux without a GUI session,
-(c) rebuilding the venv with Python 3.12 instead of 3.11 in case it's an ABI
-interaction. Update this doc with whatever works.
-
-## Resolved
+**If you still hit this after pulling the fix**: run
+`pip install -e ".[dev]"` again to make sure your venv actually re-resolved
+`mediapipe` to `0.10.35` (check with `python -c "import mediapipe; print(mediapipe.__version__)"`)
+-- a stale venv from before this fix landed will still have `1.0.x` installed
+until you reinstall.
 
 ### `black`/`ruff` crash with a CPython AST safety-check error on Python 3.12.5
 
