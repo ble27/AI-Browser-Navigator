@@ -17,6 +17,7 @@ class BrowserAction(StrEnum):
     GO_BACK = "go_back"
     GO_FORWARD = "go_forward"
     RELOAD_PAGE = "reload_page"
+    REOPEN_TAB = "reopen_tab"
 
 
 class SafePause:
@@ -95,6 +96,26 @@ class InputBackend(ABC):
 
         Args:
             action: Typed browser operation to perform.
+        """
+
+    @abstractmethod
+    def search_web(self, text: str) -> None:
+        """Search from the browser omnibox unless input is paused.
+
+        Args:
+            text: Literal query text. Implementations must not interpret it.
+        """
+
+    @abstractmethod
+    def scroll(self, amount: int) -> None:
+        """Scroll by signed page units unless input is paused.
+
+        Positive amounts scroll up and negative amounts scroll down. One unit
+        represents one page-scale step; adapters define the fixed native
+        conversion.
+
+        Args:
+            amount: Non-zero signed page count.
         """
 
     @abstractmethod

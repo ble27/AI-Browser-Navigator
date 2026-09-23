@@ -2,25 +2,33 @@
 
 from __future__ import annotations
 
+import ipaddress
+import re
 from urllib.parse import urlparse
 
 from gesture_control.actions import Intent, IntentType
 
 _SITE_ALIASES: dict[str, str] = {
-    "cursor": "https://cursor.com",
+    "amazon": "https://www.amazon.com",
     "apple": "https://www.apple.com",
+    "cursor": "https://cursor.com",
+    "github": "https://github.com",
+    "google": "https://www.google.com",
+    "youtube": "https://www.youtube.com",
 }
 
 _TRAILING_SITE_WORDS = frozenset({"webpage", "website", "site"})
+_COMMAND_PREFIXES = ("go to ", "open ", "visit ")
+_HOST_LABEL = re.compile(r"^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$", re.IGNORECASE)
+_LOCAL_SUFFIXES = (".internal", ".local", ".localhost")
 
 
 def parse_browser_command(transcript: str) -> Intent | None:
     """Parse an ``open`` voice command into an ``OPEN_URL`` intent.
 
-    Accepts case-insensitive transcripts of the form ``open`` + optional
-    ``the`` + either an https URL with a network location, or an allowlisted
-    site name (optionally followed by ``webpage`` / ``website`` / ``site``).
-    Unknown names and non-https schemes return ``None``.
+    Accepts ``open``, ``go to``, or ``visit`` followed by an allowlisted site,
+    a public bare domain, or an explicit HTTPS URL. Matching aliases is
+    case-insensitive. Unknown words and unsafe hosts/schemes return ``None``.
 
     Args:
         transcript: Raw voice transcript text to parse.
@@ -34,26 +42,23 @@ def parse_browser_command(transcript: str) -> Intent | None:
     if not collapsed:
         return None
 
-    tokens = collapsed.split()
-    if tokens[0].strip(".,!?").casefold() != "open":
+    folded = collapsed.casefold()
+    prefix = next((item for item in _COMMAND_PREFIXES if folded.startswith(item)), None)
+    if prefix is None:
         return None
 
-    rest = tokens[1:]
-    if not rest:
+    candidate = collapsed[len(prefix) :].strip()
+    if candidate.casefold().startswith("the "):
+        candidate = candidate[4:].strip()
+    if not candidate:
         return None
 
-    if rest[0].casefold() == "the":
-        rest = rest[1:]
-    if not rest:
-        return None
-
-    candidate = " ".join(rest)
     candidate_folded = candidate.casefold()
     if candidate_folded.startswith("https://"):
         return _intent_for_https_url(candidate)
 
-    # Reject other absolute schemes before treating the remainder as a site alias.
-    if "://" in candidate_folded or candidate_folded.startswith("javascript:"):
+    # A colon or explicit scheme is never interpreted as an alias/bare domain.
+    if "://" in candidate_folded or ":" in candidate_folded:
         return None
 
     # Whisper commonly appends sentence punctuation to a spoken site alias.
@@ -65,9 +70,13 @@ def parse_browser_command(transcript: str) -> Intent | None:
         return None
 
     url = _SITE_ALIASES.get(site_tokens[0].casefold())
-    if url is None:
+    if url is not None:
+        return Intent(IntentType.OPEN_URL, url=url)
+
+    bare_domain = candidate.rstrip(".,!?")
+    if any(character.isspace() for character in bare_domain):
         return None
-    return Intent(IntentType.OPEN_URL, url=url)
+    return _intent_for_https_url(f"https://{bare_domain}")
 
 
 def _intent_for_https_url(url: str) -> Intent | None:
@@ -80,10 +89,53 @@ def _intent_for_https_url(url: str) -> Intent | None:
         An ``Intent`` carrying ``url`` unchanged when it has an https scheme
         and a network location; otherwise ``None``.
     """
+    if any(character.isspace() for character in url) or "\\" in url:
+        return None
     parsed = urlparse(url)
     if parsed.scheme.casefold() != "https" or not parsed.netloc:
         return None
     # Reject embedded credentials so open-URL never carries userinfo.
     if parsed.username is not None or parsed.password is not None:
         return None
+    try:
+        parsed_port = parsed.port
+    except ValueError:
+        return None
+    if parsed_port is not None and not 1 <= parsed_port <= 65_535:
+        return None
+    hostname = parsed.hostname
+    if hostname is None or not _is_public_domain(hostname):
+        return None
     return Intent(IntentType.OPEN_URL, url=url)
+
+
+def _is_public_domain(hostname: str) -> bool:
+    """Return whether a hostname is a syntactically valid public domain.
+
+    Args:
+        hostname: Parsed hostname without credentials or port.
+
+    Returns:
+        ``True`` for dotted DNS names with valid labels and a non-numeric TLD.
+        Localhost names, IP literals, and local/private suffixes return
+        ``False``.
+    """
+    host = hostname.rstrip(".").casefold()
+    try:
+        ipaddress.ip_address(host)
+    except ValueError:
+        pass
+    else:
+        return False
+
+    if host == "localhost" or host.endswith(_LOCAL_SUFFIXES):
+        return False
+    labels = host.split(".")
+    if len(labels) < 2 or any(not _HOST_LABEL.fullmatch(label) for label in labels):
+        return False
+    top_level = labels[-1]
+    return (
+        len(top_level) >= 2
+        and not top_level.isdigit()
+        and (top_level.isalpha() or top_level.startswith("xn--"))
+    )

@@ -21,6 +21,9 @@ class IntentType(StrEnum):
     GO_BACK = "go_back"
     GO_FORWARD = "go_forward"
     RELOAD_PAGE = "reload_page"
+    REOPEN_TAB = "reopen_tab"
+    SEARCH_WEB = "search_web"
+    SCROLL = "scroll"
     CLICK_ELEMENT = "click_element"
     TYPE_TEXT = "type_text"
 
@@ -33,6 +36,7 @@ _BROWSER_ACTIONS: dict[IntentType, BrowserAction] = {
     IntentType.GO_BACK: BrowserAction.GO_BACK,
     IntentType.GO_FORWARD: BrowserAction.GO_FORWARD,
     IntentType.RELOAD_PAGE: BrowserAction.RELOAD_PAGE,
+    IntentType.REOPEN_TAB: BrowserAction.REOPEN_TAB,
 }
 
 
@@ -48,6 +52,9 @@ class Intent:
         target_id: Indexed page element id (``e1``, ``e2``, ...), required for
             ``CLICK_ELEMENT`` and ``TYPE_TEXT``.
         text: Literal text to type into a field, required for ``TYPE_TEXT``.
+            For ``SEARCH_WEB``, this is the literal omnibox query.
+        amount: Signed page count for ``SCROLL``. Positive values scroll up
+            and negative values scroll down.
     """
 
     kind: IntentType
@@ -56,6 +63,7 @@ class Intent:
     url: str | None = None
     target_id: str | None = None
     text: str | None = None
+    amount: int | None = None
 
 
 class ActionMapper:
@@ -93,6 +101,14 @@ class ActionMapper:
             self._backend.open_url(intent.url)
         elif intent.kind in _BROWSER_ACTIONS:
             self._backend.navigate_browser(_BROWSER_ACTIONS[intent.kind])
+        elif intent.kind is IntentType.SEARCH_WEB:
+            if not intent.text:
+                raise ValueError("SEARCH_WEB intents require non-empty text.")
+            self._backend.search_web(intent.text)
+        elif intent.kind is IntentType.SCROLL:
+            if intent.amount is None or intent.amount == 0:
+                raise ValueError("SCROLL intents require a non-zero amount.")
+            self._backend.scroll(intent.amount)
         elif intent.kind is IntentType.CLICK_ELEMENT:
             if not intent.target_id:
                 raise ValueError("CLICK_ELEMENT intents require a target_id.")
