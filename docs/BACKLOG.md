@@ -22,9 +22,11 @@ Tracked here instead of inline `TODO`s so `main` stays clean. Move items out
   landing first. Do not attach the DevTools Protocol to the default Chrome
   profile. See `docs/research/voice-html-navigation.md`.
 - Windows and Linux adapters for `InputBackend.open_url` (Chrome binary + URL).
-  macOS uses `open -a "Google Chrome"`.
-- Wake word (`openWakeWord`), offline speech-to-text, and confirmation TTS.
-  `--command` is the stand-in until that pipeline exists.
+  macOS uses `open -a "Google Chrome"`. The continuous `--voice` runtime is
+  likewise macOS-only until those platforms have input backends and QA.
+- Wake word (`openWakeWord`) and confirmation TTS. The current `--voice`
+  session starts listening only after explicit user launch and prints text
+  feedback.
 - User-editable site allowlist in config. The built-in list is Cursor and Apple
   plus an explicit `https://` URL.
 

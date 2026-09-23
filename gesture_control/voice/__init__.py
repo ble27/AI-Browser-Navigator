@@ -1,10 +1,8 @@
 """Offline voice command pipeline.
 
-Wake word (``openWakeWord``) -> offline speech-to-text (``faster-whisper``)
--> deterministic intent parser -> offline text-to-speech (``Piper``) for
-confirmations. All dependencies in this package are optional and lazily
-imported, so a gesture-only install never requires audio libraries.
-Browser open-site phrases are parsed by :mod:`gesture_control.voice.browser`.
-HTML page indexing for in-page voice targets lives in
-:mod:`gesture_control.voice.page`.
+The implemented macOS runtime records explicitly started microphone sessions,
+transcribes locally with ``faster-whisper``, and sends deterministic intents
+through the shared Action Mapper. Optional audio/model packages are lazily
+imported, so gesture-only startup never requires them. Wake word, TTS, and the
+live Chrome page bridge remain deferred.
 """

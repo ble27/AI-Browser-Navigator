@@ -124,7 +124,10 @@ flowchart TD
 ### 7.3 Voice agent (v1, fully offline)
 
 - Configurable wake word (default "hey gesture") via `openWakeWord`.
-- Offline STT via `faster-whisper` (small/base model, CPU).
+- Offline STT via `faster-whisper`. The first macOS runtime uses `tiny.en` on
+  CPU with int8 compute, records 16 kHz mono audio through `sounddevice`, and
+  continuously listens only after the user explicitly starts `--voice`.
+  Model files may download on first use; captured audio is never uploaded.
 - Deterministic command grammar first (`"click"`, `"scroll down"`,
   `"switch tab"`, `"pause tracking"`, `"open cursor webpage"`,
   `"open apple website"`, ...) parsed into the same `Intent` shape
@@ -132,8 +135,9 @@ flowchart TD
   The first shipped phrases open an allowlisted https URL in Google Chrome
   (`IntentType.OPEN_URL` → `InputBackend.open_url`). The first macOS Chrome
   navigation slice also accepts fixed tab/history/reload phrases and maps them
-  through `InputBackend.navigate_browser` to keyboard shortcuts. Microphone,
-  wake word, TTS, and live in-page extension control remain later work.
+  through `InputBackend.navigate_browser` to keyboard shortcuts. Microphone
+  transcription now feeds that same parser and Action Mapper. Wake word, TTS,
+  and live in-page extension control remain later work.
 - Offline TTS via `Piper` for confirmations (e.g. "Paused", "Switched tab"),
   toggleable — important for blind/low-vision users.
 - **Stretch**: optional local LLM (Ollama) fallback for free-form phrasing, off

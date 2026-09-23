@@ -40,6 +40,7 @@ python -m gesture_control.app --debug --camera-index 1   # use a non-default web
 python -m gesture_control.app --debug --control           # enable macOS cursor + pinch click
 python -m gesture_control.app --command "open cursor webpage"  # open that site in Google Chrome
 python -m gesture_control.app --command "next tab"        # send a fixed Chrome shortcut
+python -m gesture_control.app --voice                     # continuously listen locally (macOS)
 python -m gesture_control.app --version
 ```
 
@@ -69,10 +70,32 @@ gestures are scheduled for M3.
 
 ## Voice cheat-sheet (macOS)
 
-Wake word and speech-to-text are still ahead. Until then, pass one phrase
-with `--command`. Open commands launch Google Chrome specifically (not the
-default browser); navigation commands control the currently focused app and
-therefore require Chrome to be focused.
+Install the optional local audio stack once:
+
+```bash
+python -m pip install -e ".[voice]"
+```
+
+Grant the launching terminal **Microphone** and **Accessibility** permissions,
+focus Google Chrome, then explicitly start continuous listening:
+
+```bash
+python -m gesture_control.app --voice
+# Or select another faster-whisper model/local directory:
+python -m gesture_control.app --voice --voice-model base.en
+```
+
+The default `tiny.en` model runs on CPU with int8 compute. It may download and
+cache model files on first use; after that, recognition is fully local. Audio
+is never uploaded and no hosted API is used. `--voice` continuously waits for
+commands until Ctrl+C; there is no wake word yet. Use
+**Control+Option+Command+P** to pause/resume injected browser actions during
+the session.
+
+`--command "<phrase>"` remains available for one-shot parser/backend testing
+without microphone capture. Open commands launch Google Chrome specifically
+(not the default browser); navigation commands control the focused app, so
+Chrome must be focused.
 
 - `open cursor webpage` / `open the cursor website` / `open cursor site`:
   https://cursor.com
@@ -87,8 +110,8 @@ Unknown names (`open my bank`), `http://` URLs, and URLs with a username or
 password are rejected. Extra unknown words are rejected by the navigation
 grammar. Each backend operation checks SafePause immediately, though the
 one-shot `--command` process does not start the global pause hotkey listener.
-Microphone input, wake word, TTS, and live in-page extension click/type are not
-part of this slice.
+Wake word activation, TTS, and live in-page extension click/type are not part
+of this slice.
 
 ## Safety
 

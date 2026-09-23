@@ -38,6 +38,27 @@ word, or TTS. Focus Google Chrome before each navigation command.
 - [ ] No in-page extension click/type behavior is implied by this checklist;
       the live Chrome page bridge remains disconnected.
 
+## Voice — local microphone runtime (macOS)
+
+Install with `python -m pip install -e ".[voice]"`. Grant the terminal
+Microphone and Accessibility permissions. The first `tiny.en` run may need
+network access to download model files; audio transcription is local and no
+recording is uploaded.
+
+- [ ] `python -m gesture_control.app --voice` prints model/microphone guidance,
+      waits through room silence, and remains running for multiple commands.
+- [ ] Saying `next tab`, `previous tab`, `new tab`, `close tab`, `back`,
+      `forward`, and `refresh` performs the matching action in focused Chrome.
+- [ ] Initial speech is not clipped, and a completed short phrase dispatches
+      after trailing silence without requiring a key press.
+- [ ] Empty noise and an unknown phrase print unrecognized feedback without
+      injecting keyboard or browser input.
+- [ ] Control+Option+Command+P blocks/resumes actions for the entire voice
+      session while recording and transcription continue.
+- [ ] Ctrl+C exits cleanly and releases the microphone and hotkey listener.
+- [ ] No wake word or TTS occurs; listening begins only after explicit
+      `--voice` startup.
+
 ## M1 — Camera + hand landmark pipeline
 
 > Model/inference correctness (camera-free) is confirmed via
@@ -95,9 +116,8 @@ word, or TTS. Focus Google Chrome before each navigation command.
 ## M5 — Voice agent
 
 - [ ] Saying the wake word triggers listening (visual/audio cue shown).
-- [ ] Each command in the grammar (`click`, `scroll down`, `switch tab`,
-      `pause tracking`, ...) executes the correct action end-to-end offline
-      (no network access during the test).
+- [ ] Each implemented Chrome command executes end-to-end from local
+      microphone audio with no network access after the model is cached.
 - [ ] TTS confirmation is audible and matches the executed action.
 - [ ] Disabling the mic via tray icon stops wake-word listening.
 
