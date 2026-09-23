@@ -9,36 +9,66 @@ from __future__ import annotations
 
 import math
 from dataclasses import dataclass
+from enum import StrEnum
 
 from gesture_control.gestures.smoothing import OneEuroFilter
-from gesture_control.vision.geometry import HandLandmarkIndex, HandObservation, landmark_distance
+from gesture_control.vision.geometry import (
+    HandLandmarkIndex,
+    HandObservation,
+    Landmark,
+    landmark_distance,
+)
 
 _PINCH_CLOSE_RATIO = 0.35
 _PINCH_OPEN_RATIO = 0.45
-# The fingertip landmark is the noisiest point on the hand. Blending a little
-# of the distal joint (one landmark back) cuts that noise before it is
-# multiplied by the screen size, without moving the pointer off the fingertip.
-_TIP_BLEND = 0.85
-# 1€ tuning is in screen pixels. At rest the cutoff stays low enough that a
-# few pixels of landmark noise never become cursor motion. Beta opens the
-# filter once the fingertip is actually moving, so a swipe is not lagged by
-# the same smoothing that holds a still hand.
-_DEFAULT_MIN_CUTOFF_HZ = 1.2
-_DEFAULT_BETA = 0.025
+# Freeze the pointer shortly before the click threshold so the closing fingertips
+# cannot walk the target away in the frames that precede ``pinch_started``.
+_PINCH_APPROACH_RATIO = 0.42
+# Optional pinch-stable anchors (MCP / palm) for A/B when tip flex during a
+# click is unacceptable. Default tracking uses the index tip so the pointer
+# stays where the finger is pointing.
+_PALM_LANDMARKS: tuple[HandLandmarkIndex, ...] = (
+    HandLandmarkIndex.WRIST,
+    HandLandmarkIndex.INDEX_FINGER_MCP,
+    HandLandmarkIndex.MIDDLE_FINGER_MCP,
+    HandLandmarkIndex.RING_FINGER_MCP,
+    HandLandmarkIndex.PINKY_MCP,
+)
+# Mild MCP↔PIP blend for the optional knuckle mode.
+_MCP_PIP_BLEND = 0.75
+# Tip mode is tip-weighted so the cursor sits on the fingertip, not the joint.
+_TIP_DIP_BLEND = 0.95
+# 1€ tuning is in screen pixels at ~20–30 Hz after MediaPipe on 320×240.
+# Casiez et al. (CHI 2012): lower min_cutoff kills rest jitter; raise beta to
+# reclaim swipe responsiveness. Tip tracking prefers a slightly higher cutoff
+# so the pointer stays glued to the finger instead of trailing.
+_DEFAULT_MIN_CUTOFF_HZ = 1.0
+_DEFAULT_BETA = 0.01
 _DEFAULT_DERIVATIVE_CUTOFF_HZ = 1.0
 _DEFAULT_EDGE_MARGIN = 0.12
 # Resting landmark noise converges a few pixels and then reverses direction.
 # Hold the cursor until the filtered point leaves this radius so that noise
 # cannot step the pointer. A real movement is monotonic, so once it escapes
 # the radius the pointer follows every sample until it comes to rest.
-_STILL_RADIUS_PX = 14.0
-_CRAWL_SPEED_PX_S = 30.0
-_SETTLE_SPEED_PX_S = 90.0
+_STILL_RADIUS_PX = 10.0
+_CRAWL_SPEED_PX_S = 40.0
+_SETTLE_SPEED_PX_S = 110.0
 # Predict forward by a fraction of the pipeline delay, but never past the
-# measured fingertip. That closes the visible gap during a swipe without
-# the overshoot that reads as jitter.
-_LEAD_SECONDS = 0.04
-_LEAD_MIN_SPEED_PX_S = 220.0
+# measured point and never at crawl speeds — aggressive lead was a primary
+# source of the overshoot/undershoot hunt users reported.
+_LEAD_SECONDS = 0.02
+_LEAD_MIN_SPEED_PX_S = 400.0
+# Hard cap on how far one sample may jump after filtering. Guards against a
+# single bad landmark frame flinging the cursor across the display.
+_MAX_STEP_PX = 220.0
+
+
+class CursorPointSource(StrEnum):
+    """Which hand geometry drives the on-screen pointer."""
+
+    INDEX_TIP = "index_tip"
+    INDEX_MCP = "index_mcp"
+    PALM = "palm"
 
 
 @dataclass(frozen=True, slots=True)
@@ -46,44 +76,59 @@ class PointerGesture:
     """The pointer state recognized from one hand in a video frame.
 
     Attributes:
-        x: Normalized horizontal index-fingertip position, clamped to ``[0, 1]``.
-        y: Normalized vertical index-fingertip position, clamped to ``[0, 1]``.
+        x: Normalized horizontal cursor-anchor position, clamped to ``[0, 1]``.
+        y: Normalized vertical cursor-anchor position, clamped to ``[0, 1]``.
         is_pinching: Whether the thumb and index fingertips are currently pinched.
         pinch_started: Whether a thumb-index pinch began in this frame.
+        freeze_cursor: Whether pointer motion should be suppressed (approach or
+            held pinch) so click targeting stays put.
     """
 
     x: float
     y: float
     is_pinching: bool
     pinch_started: bool
+    freeze_cursor: bool
 
 
 class PointerGestureRecognizer:
-    """Recognize index-finger cursor positions and edge-triggered pinches.
+    """Recognize stable cursor anchors and edge-triggered pinches.
 
     The thumb-index distance is normalized by the wrist-to-index-knuckle
     distance, making the threshold scale with the detected hand rather than
-    depending on a fixed camera distance.
+    depending on a fixed camera distance. Cursor position and pinch detection
+    intentionally use different landmarks so closing the fingers for a click
+    does not translate the pointer.
     """
 
     def __init__(
         self,
         close_ratio: float = _PINCH_CLOSE_RATIO,
         open_ratio: float = _PINCH_OPEN_RATIO,
+        approach_ratio: float = _PINCH_APPROACH_RATIO,
+        point_source: CursorPointSource = CursorPointSource.INDEX_TIP,
     ) -> None:
         """Create a recognizer with hysteresis thresholds for pinch state.
 
         Args:
             close_ratio: Pinch ratio at or below which a pinch begins.
             open_ratio: Pinch ratio at or above which a pinch ends.
+            approach_ratio: Pinch ratio at or below which cursor motion freezes
+                in anticipation of a click. Must be ``>= close_ratio``.
+            point_source: Landmark set used for the cursor anchor. Defaults to
+                the index fingertip so the pointer tracks where the finger is.
 
         Raises:
             ValueError: If ratios are invalid or do not provide hysteresis.
         """
         if close_ratio <= 0.0 or open_ratio <= close_ratio:
             raise ValueError("open_ratio must be greater than a positive close_ratio.")
+        if approach_ratio < close_ratio:
+            raise ValueError("approach_ratio must be at least close_ratio.")
         self._close_ratio = close_ratio
         self._open_ratio = open_ratio
+        self._approach_ratio = approach_ratio
+        self._point_source = point_source
         self._pinching = False
 
     def recognize(self, hand: HandObservation) -> PointerGesture:
@@ -95,8 +140,7 @@ class PointerGestureRecognizer:
         Returns:
             The normalized pointer location and whether a pinch started now.
         """
-        index_tip = hand.landmark(HandLandmarkIndex.INDEX_FINGER_TIP)
-        index_dip = hand.landmark(HandLandmarkIndex.INDEX_FINGER_DIP)
+        anchor = _cursor_anchor(hand, self._point_source)
         pinch_ratio = _pinch_ratio(hand)
         pinch_started = False
         if not self._pinching and pinch_ratio <= self._close_ratio:
@@ -104,11 +148,13 @@ class PointerGestureRecognizer:
             pinch_started = True
         elif self._pinching and pinch_ratio >= self._open_ratio:
             self._pinching = False
+        freeze_cursor = self._pinching or pinch_ratio <= self._approach_ratio
         return PointerGesture(
-            x=_clamp_normalized(_TIP_BLEND * index_tip.x + (1.0 - _TIP_BLEND) * index_dip.x),
-            y=_clamp_normalized(_TIP_BLEND * index_tip.y + (1.0 - _TIP_BLEND) * index_dip.y),
+            x=_clamp_normalized(anchor.x),
+            y=_clamp_normalized(anchor.y),
             is_pinching=self._pinching,
             pinch_started=pinch_started,
+            freeze_cursor=freeze_cursor,
         )
 
     def reset(self) -> None:
@@ -183,17 +229,20 @@ class CursorMapper:
         beta: float = _DEFAULT_BETA,
         derivative_cutoff_hz: float = _DEFAULT_DERIVATIVE_CUTOFF_HZ,
         edge_margin: float = _DEFAULT_EDGE_MARGIN,
+        max_step_px: float = _MAX_STEP_PX,
     ) -> None:
         """Create a cursor mapper for one screen.
 
         Args:
             screen_width: Width of the target screen in pixels.
             screen_height: Height of the target screen in pixels.
-            min_cutoff_hz: 1€ cutoff while the fingertip is still.
-            beta: Extra cutoff added per pixel/second of fingertip speed.
+            min_cutoff_hz: 1€ cutoff while the cursor anchor is still.
+            beta: Extra cutoff added per pixel/second of anchor speed.
             derivative_cutoff_hz: Cutoff of the speed estimate.
             edge_margin: Normalized inset of the camera region that maps onto
                 the full screen, in ``[0, 0.5)``. ``0`` uses the whole frame.
+            max_step_px: Maximum pixels the pointer may travel between samples
+                after filtering. ``0`` disables the clamp.
 
         Raises:
             ValueError: If screen dimensions or filter settings are invalid.
@@ -202,14 +251,18 @@ class CursorMapper:
             raise ValueError("screen dimensions must be positive.")
         if not 0.0 <= edge_margin < 0.5:
             raise ValueError("edge_margin must be in the range [0, 0.5).")
+        if max_step_px < 0.0:
+            raise ValueError("max_step_px must be non-negative.")
         self._screen_width = screen_width
         self._screen_height = screen_height
         self._edge_margin = edge_margin
+        self._max_step_px = max_step_px
         self._x_filter = OneEuroFilter(min_cutoff_hz, beta, derivative_cutoff_hz)
         self._y_filter = OneEuroFilter(min_cutoff_hz, beta, derivative_cutoff_hz)
         self._anchor: tuple[float, float] | None = None
         self._last_velocity = (0.0, 0.0)
         self._settled = True
+        self._last_output: tuple[float, float] | None = None
 
     def map(self, x: float, y: float, timestamp_s: float) -> tuple[int, int]:
         """Transform a normalized point into a screen coordinate.
@@ -234,7 +287,21 @@ class CursorMapper:
         predicted_y = _lead_toward_target(filtered_y, target_y, velocity_y)
         predicted_x = _clamp_screen(predicted_x, self._screen_width)
         predicted_y = _clamp_screen(predicted_y, self._screen_height)
+        predicted_x, predicted_y = self._clamp_step(predicted_x, predicted_y)
         return self._stabilize(predicted_x, predicted_y, velocity_x, velocity_y)
+
+    def _clamp_step(self, predicted_x: float, predicted_y: float) -> tuple[float, float]:
+        """Limit one-sample jumps that read as overshoot from a bad landmark."""
+        if self._last_output is None or self._max_step_px == 0.0:
+            return predicted_x, predicted_y
+        last_x, last_y = self._last_output
+        dx = predicted_x - last_x
+        dy = predicted_y - last_y
+        distance = math.hypot(dx, dy)
+        if distance <= self._max_step_px:
+            return predicted_x, predicted_y
+        scale = self._max_step_px / distance
+        return last_x + dx * scale, last_y + dy * scale
 
     def _stabilize(
         self,
@@ -247,6 +314,7 @@ class CursorMapper:
         if self._anchor is None:
             self._anchor = (predicted_x, predicted_y)
             self._last_velocity = (velocity_x, velocity_y)
+            self._last_output = (predicted_x, predicted_y)
             return round(predicted_x), round(predicted_y)
 
         anchor_x, anchor_y = self._anchor
@@ -256,6 +324,7 @@ class CursorMapper:
         self._last_velocity = (velocity_x, velocity_y)
 
         if self._settled and distance <= _STILL_RADIUS_PX:
+            self._last_output = (anchor_x, anchor_y)
             return round(anchor_x), round(anchor_y)
 
         # A stopped hand produces a small, often reversing speed. A slow
@@ -263,11 +332,51 @@ class CursorMapper:
         if speed < _CRAWL_SPEED_PX_S or (speed < _SETTLE_SPEED_PX_S and reversing):
             self._settled = True
             self._anchor = (predicted_x, predicted_y)
+            self._last_output = (predicted_x, predicted_y)
             return round(predicted_x), round(predicted_y)
 
         self._settled = False
         self._anchor = (predicted_x, predicted_y)
+        self._last_output = (predicted_x, predicted_y)
         return round(predicted_x), round(predicted_y)
+
+
+def _cursor_anchor(hand: HandObservation, source: CursorPointSource) -> Landmark:
+    """Pick the landmark (or blend) that drives the pointer.
+
+    Tip mode follows the index fingertip closely. MCP and palm modes trade that
+    spatial match for less motion when the tips close for a pinch.
+    """
+    if source is CursorPointSource.PALM:
+        return _palm_center(hand)
+    if source is CursorPointSource.INDEX_MCP:
+        mcp = hand.landmark(HandLandmarkIndex.INDEX_FINGER_MCP)
+        pip = hand.landmark(HandLandmarkIndex.INDEX_FINGER_PIP)
+        return Landmark(
+            x=_MCP_PIP_BLEND * mcp.x + (1.0 - _MCP_PIP_BLEND) * pip.x,
+            y=_MCP_PIP_BLEND * mcp.y + (1.0 - _MCP_PIP_BLEND) * pip.y,
+            z=_MCP_PIP_BLEND * mcp.z + (1.0 - _MCP_PIP_BLEND) * pip.z,
+        )
+    tip = hand.landmark(HandLandmarkIndex.INDEX_FINGER_TIP)
+    dip = hand.landmark(HandLandmarkIndex.INDEX_FINGER_DIP)
+    tip_w = _TIP_DIP_BLEND
+    dip_w = 1.0 - tip_w
+    return Landmark(
+        x=tip_w * tip.x + dip_w * dip.x,
+        y=tip_w * tip.y + dip_w * dip.y,
+        z=tip_w * tip.z + dip_w * dip.z,
+    )
+
+
+def _palm_center(hand: HandObservation) -> Landmark:
+    """Average the wrist and finger knuckles into a pinch-stable palm point."""
+    points = [hand.landmark(index) for index in _PALM_LANDMARKS]
+    count = float(len(points))
+    return Landmark(
+        x=sum(point.x for point in points) / count,
+        y=sum(point.y for point in points) / count,
+        z=sum(point.z for point in points) / count,
+    )
 
 
 def _pinch_ratio(hand: HandObservation) -> float:
