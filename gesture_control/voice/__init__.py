@@ -5,4 +5,6 @@ Wake word (``openWakeWord``) -> offline speech-to-text (``faster-whisper``)
 confirmations. All dependencies in this package are optional and lazily
 imported, so a gesture-only install never requires audio libraries.
 Browser open-site phrases are parsed by :mod:`gesture_control.voice.browser`.
+HTML page indexing for in-page voice targets lives in
+:mod:`gesture_control.voice.page`.
 """
