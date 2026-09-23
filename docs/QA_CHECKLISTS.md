@@ -5,6 +5,23 @@ can't be fully covered by automated `pytest` unit tests. Each milestone that
 touches hardware paths gets a checklist here, checked off manually before the
 milestone's commit/tag is considered done.
 
+## Voice — open a named site in Google Chrome
+
+Wake word and microphone speech-to-text are not part of this slice. The
+phrase is passed on the command line so the open path can be checked without
+a mic.
+
+- [ ] `python -m gesture_control.app --command "open cursor webpage"` opens
+      https://cursor.com in Google Chrome (not Safari or another default
+      browser).
+- [ ] `python -m gesture_control.app --command "open apple website"` opens
+      https://www.apple.com in Google Chrome.
+- [ ] `python -m gesture_control.app --command "open my bank"` prints an error
+      and does not open a tab.
+- [ ] A paused `MacOSInputBackend` does not call Chrome. This is covered by
+      unit tests; `--command` starts its own unpaused process, so the hotkey
+      in a separate `--control` session does not block it.
+
 ## M1 — Camera + hand landmark pipeline
 
 > Model/inference correctness (camera-free) is confirmed via

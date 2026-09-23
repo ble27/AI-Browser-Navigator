@@ -15,6 +15,18 @@ Tracked here instead of inline `TODO`s so `main` stays clean. Move items out
 - Full Wayland parity (compositor-specific quirks beyond the documented
   `ydotool` best-effort path).
 
+## Later voice / browser milestone
+
+- In-page control inside a website (click, type, or navigate within the page)
+  via a Chrome extension, Native Messaging, or the DevTools Protocol. Opening
+  a named site in Google Chrome is in scope now; driving the page is not.
+- Windows and Linux adapters for `InputBackend.open_url` (Chrome binary + URL).
+  macOS uses `open -a "Google Chrome"`.
+- Wake word (`openWakeWord`), offline speech-to-text, and confirmation TTS.
+  `--command` is the stand-in until that pipeline exists.
+- User-editable site allowlist in config. The built-in list is Cursor and Apple
+  plus an explicit `https://` URL.
+
 ## Ideas to evaluate later (not committed to v1 scope)
 
 - Head-pose or eye-tracking as an additional input modality for users with no

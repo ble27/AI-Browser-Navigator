@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+import subprocess
 from collections.abc import Callable
 from typing import Protocol
+from urllib.parse import urlparse
 
 from gesture_control.backends.base import InputBackend, SafePause
 
@@ -20,14 +22,31 @@ class _HotkeyListener(Protocol):
         """Stop listening."""
 
 
+def _open_url_in_google_chrome(url: str) -> None:
+    """Open ``url`` in Google Chrome via macOS ``open -a``.
+
+    Args:
+        url: Absolute https URL to hand to Chrome.
+    """
+    # ``open -a "Google Chrome"`` pins Chrome specifically; the default
+    # ``open url`` / webbrowser path would use the user's default browser.
+    subprocess.run(["open", "-a", "Google Chrome", url], check=False)
+
+
 class MacOSInputBackend(InputBackend):
     """Inject mouse input through pynput on macOS."""
 
-    def __init__(self, safe_pause: SafePause | None = None) -> None:
+    def __init__(
+        self,
+        safe_pause: SafePause | None = None,
+        opener: Callable[[str], None] | None = None,
+    ) -> None:
         """Create a macOS mouse controller.
 
         Args:
             safe_pause: A gate shared with the global pause hotkey.
+            opener: Optional URL opener used by :meth:`open_url`. Defaults to
+                launching Google Chrome with ``open -a``.
         """
         super().__init__(safe_pause=safe_pause)
         from pynput import mouse
@@ -35,6 +54,7 @@ class MacOSInputBackend(InputBackend):
         self._mouse = mouse.Controller()
         self._left_button = mouse.Button.left
         self._last_position: tuple[int, int] | None = None
+        self._opener = opener if opener is not None else _open_url_in_google_chrome
 
     def screen_size(self) -> tuple[int, int]:
         """Return the primary screen dimensions in pixels."""
@@ -59,6 +79,25 @@ class MacOSInputBackend(InputBackend):
         """Click the primary mouse button if the safe-pause gate permits it."""
         if not self.safe_pause.is_paused:
             self._mouse.click(self._left_button)
+
+    def open_url(self, url: str) -> None:
+        """Open an https URL in Google Chrome if the safe-pause gate permits it.
+
+        Args:
+            url: Absolute URL to open. Non-https schemes and URLs without a
+                network location are ignored.
+        """
+        if self.safe_pause.is_paused:
+            return
+        parsed = urlparse(url)
+        # https-only: reject http/javascript/file and other schemes so voice
+        # open-URL never launches arbitrary local or script handlers.
+        if parsed.scheme.casefold() != "https" or not parsed.netloc:
+            return
+        # Also reject userinfo so a hand-built Intent cannot bypass the parser.
+        if parsed.username is not None or parsed.password is not None:
+            return
+        self._opener(url)
 
 
 class SafePauseHotkey:

@@ -12,6 +12,7 @@ import pytest
 from gesture_control import app
 from gesture_control.actions import Intent, IntentType
 from gesture_control.app import build_arg_parser, main
+from gesture_control.backends.base import InputBackend
 from gesture_control.vision.camera import CameraUnavailableError
 from gesture_control.vision.geometry import HandLandmarkIndex, HandObservation, Landmark
 
@@ -176,3 +177,81 @@ def test_run_debug_overlay_returns_one_when_camera_unavailable(
     exit_code = app.run_debug_overlay(camera_index=0)
 
     assert exit_code == 1
+
+
+def test_build_arg_parser_accepts_command() -> None:
+    """``--command`` should accept a phrase and default to ``None`` when omitted."""
+    parser = build_arg_parser()
+
+    assert parser.parse_args(["--command", "open cursor webpage"]).command == (
+        "open cursor webpage"
+    )
+    assert parser.parse_args([]).command is None
+
+
+def test_main_command_opens_cursor_in_the_injected_backend(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """``--command`` should open a parsed URL through the injected backend."""
+    opened_urls: list[str] = []
+
+    class _RecordingBackend(InputBackend):
+        """Record open_url calls without launching Chrome or a camera."""
+
+        def screen_size(self) -> tuple[int, int]:
+            return 100, 100
+
+        def move_to(self, x: int, y: int) -> None:
+            del x, y
+
+        def click_left(self) -> None:
+            return None
+
+        def open_url(self, url: str) -> None:
+            opened_urls.append(url)
+
+    def _fail_overlay(*args: object, **kwargs: object) -> int:
+        raise AssertionError("run_debug_overlay must not start for --command")
+
+    monkeypatch.setattr(app, "MacOSInputBackend", _RecordingBackend)
+    monkeypatch.setattr(app, "run_debug_overlay", _fail_overlay)
+    monkeypatch.setattr(app.sys, "platform", "darwin")
+
+    exit_code = main(["--command", "open cursor webpage"])
+
+    assert exit_code == 0
+    assert opened_urls == ["https://cursor.com"]
+
+
+def test_main_command_unknown_phrase_opens_nothing(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """An unrecognized ``--command`` phrase must exit non-zero without opening."""
+    opened_urls: list[str] = []
+
+    class _RecordingBackend(InputBackend):
+        """Record open_url calls without launching Chrome or a camera."""
+
+        def screen_size(self) -> tuple[int, int]:
+            return 100, 100
+
+        def move_to(self, x: int, y: int) -> None:
+            del x, y
+
+        def click_left(self) -> None:
+            return None
+
+        def open_url(self, url: str) -> None:
+            opened_urls.append(url)
+
+    def _fail_overlay(*args: object, **kwargs: object) -> int:
+        raise AssertionError("run_debug_overlay must not start for --command")
+
+    monkeypatch.setattr(app, "MacOSInputBackend", _RecordingBackend)
+    monkeypatch.setattr(app, "run_debug_overlay", _fail_overlay)
+    monkeypatch.setattr(app.sys, "platform", "darwin")
+
+    exit_code = main(["--command", "open my bank"])
+
+    assert exit_code == 1
+    assert opened_urls == []

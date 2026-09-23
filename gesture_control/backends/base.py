@@ -63,3 +63,15 @@ class InputBackend(ABC):
     @abstractmethod
     def click_left(self) -> None:
         """Click the primary mouse button unless input injection is paused."""
+
+    @abstractmethod
+    def open_url(self, url: str) -> None:
+        """Open a URL unless input injection is paused.
+
+        Implementations must check :attr:`safe_pause` before opening anything,
+        matching :meth:`move_to` and :meth:`click_left`. The ABC itself does
+        not perform that check.
+
+        Args:
+            url: Absolute URL the platform adapter should open.
+        """

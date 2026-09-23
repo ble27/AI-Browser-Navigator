@@ -126,8 +126,12 @@ flowchart TD
 - Configurable wake word (default "hey gesture") via `openWakeWord`.
 - Offline STT via `faster-whisper` (small/base model, CPU).
 - Deterministic command grammar first (`"click"`, `"scroll down"`,
-  `"switch tab"`, `"pause tracking"`, ...) parsed into the same `Intent` shape
+  `"switch tab"`, `"pause tracking"`, `"open cursor webpage"`,
+  `"open apple website"`, ...) parsed into the same `Intent` shape
   the gesture recognizer produces, so both modalities share one Action Mapper.
+  The first shipped phrases open an allowlisted https URL in Google Chrome
+  (`IntentType.OPEN_URL` → `InputBackend.open_url`). In-page control of a
+  website is a later milestone.
 - Offline TTS via `Piper` for confirmations (e.g. "Paused", "Switched tab"),
   toggleable — important for blind/low-vision users.
 - **Stretch**: optional local LLM (Ollama) fallback for free-form phrasing, off

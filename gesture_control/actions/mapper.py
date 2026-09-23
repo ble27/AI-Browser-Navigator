@@ -13,6 +13,7 @@ class IntentType(StrEnum):
 
     MOVE_CURSOR = "move_cursor"
     CLICK_LEFT = "click_left"
+    OPEN_URL = "open_url"
 
 
 @dataclass(frozen=True, slots=True)
@@ -23,11 +24,13 @@ class Intent:
         kind: The action requested by a gesture or voice command.
         x: Target cursor horizontal coordinate, required for ``MOVE_CURSOR``.
         y: Target cursor vertical coordinate, required for ``MOVE_CURSOR``.
+        url: HTTPS URL to open, required for ``OPEN_URL``.
     """
 
     kind: IntentType
     x: int | None = None
     y: int | None = None
+    url: str | None = None
 
 
 class ActionMapper:
@@ -48,7 +51,8 @@ class ActionMapper:
             intent: The gesture or voice action to perform.
 
         Raises:
-            ValueError: If a cursor movement intent omits a coordinate.
+            ValueError: If a cursor movement intent omits a coordinate, or an
+                ``OPEN_URL`` intent omits ``url``.
         """
         if intent.kind is IntentType.MOVE_CURSOR:
             if intent.x is None or intent.y is None:
@@ -56,3 +60,7 @@ class ActionMapper:
             self._backend.move_to(intent.x, intent.y)
         elif intent.kind is IntentType.CLICK_LEFT:
             self._backend.click_left()
+        elif intent.kind is IntentType.OPEN_URL:
+            if intent.url is None:
+                raise ValueError("OPEN_URL intents require a url.")
+            self._backend.open_url(intent.url)

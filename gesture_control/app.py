@@ -1,7 +1,8 @@
 """Command-line entrypoint for the gesture control application.
 
 Milestone status: M2 adds opt-in macOS cursor movement and pinch clicking to
-the M1 camera and hand-landmark debug overlay.
+the M1 camera and hand-landmark debug overlay. ``--command`` opens an
+allowlisted site in Google Chrome without starting the camera.
 """
 
 from __future__ import annotations
@@ -25,6 +26,7 @@ from gesture_control.vision.camera import Camera, CameraUnavailableError
 from gesture_control.vision.geometry import HandObservation
 from gesture_control.vision.hand_landmarker import HandLandmarkerService
 from gesture_control.vision.overlay import draw_hand_landmarks
+from gesture_control.voice.browser import parse_browser_command
 
 _DEBUG_WINDOW_TITLE = "gesture-control debug (press 'q' to quit)"
 _QUIT_KEY = ord("q")
@@ -69,6 +71,16 @@ def build_arg_parser() -> argparse.ArgumentParser:
         help=(
             "Enable macOS cursor movement and pinch-click input. Requires --debug; "
             "press Ctrl+Option+Command+P at any time to pause or resume input."
+        ),
+    )
+    parser.add_argument(
+        "--command",
+        type=str,
+        default=None,
+        help=(
+            "Run one offline voice-style phrase that opens an allowlisted site or "
+            'https URL in Google Chrome (examples: "open cursor webpage", '
+            '"open apple website"). macOS only; skips the camera debug overlay.'
         ),
     )
     parser.add_argument(
@@ -169,8 +181,33 @@ def run_debug_overlay(camera_index: int = 0, control: bool = False) -> int:
     return 0
 
 
+def run_voice_command(command: str) -> int:
+    """Parse one offline open-site phrase and dispatch it through the backend.
+
+    Does not open a camera. On success the macOS backend opens the URL in
+    Google Chrome via :meth:`MacOSInputBackend.open_url`.
+
+    Args:
+        command: Voice-style phrase such as ``open cursor webpage``.
+
+    Returns:
+        ``0`` when an intent was dispatched, ``1`` when the phrase was not
+        recognized (nothing is opened).
+    """
+    intent = parse_browser_command(command)
+    if intent is None:
+        print(f"error: unrecognized command: {command!r}", file=sys.stderr)
+        return 1
+    backend = MacOSInputBackend()
+    ActionMapper(backend).dispatch(intent)
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     """Run the gesture control application.
+
+    When ``--command`` is set, runs :func:`run_voice_command` instead of the
+    camera debug overlay (even if ``--debug`` is also present).
 
     Args:
         argv: Command-line arguments, excluding the program name. Defaults to
@@ -186,6 +223,10 @@ def main(argv: list[str] | None = None) -> int:
         parser.error("--control requires --debug.")
     if args.control and sys.platform != "darwin":
         parser.error("--control is currently supported on macOS only.")
+    if args.command is not None and sys.platform != "darwin":
+        parser.error("--command is currently supported on macOS only.")
+    if args.command is not None:
+        return run_voice_command(args.command)
     if args.debug:
         return run_debug_overlay(camera_index=args.camera_index, control=args.control)
 
