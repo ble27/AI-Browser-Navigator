@@ -10,6 +10,37 @@ set -euo pipefail
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 venv_dir="${repo_root}/.venv"
 
+usage() {
+  cat <<'EOF'
+Usage: ./scripts/setup_env.sh [--voice]
+
+  --voice  Install local microphone/STT/TTS/wake-word dependencies in addition
+           to the gesture runtime and development tools.
+EOF
+}
+
+case "${1:-}" in
+  "")
+    install_voice=false
+    ;;
+  --voice)
+    install_voice=true
+    ;;
+  -h|--help)
+    usage
+    exit 0
+    ;;
+  *)
+    usage >&2
+    exit 2
+    ;;
+esac
+
+if [[ "$#" -gt 1 ]]; then
+  usage >&2
+  exit 2
+fi
+
 # Prefer a pinned, well-tested interpreter over whatever `python3` resolves
 # to on the host, since MediaPipe/faster-whisper/openWakeWord are tested
 # against 3.11/3.12, not necessarily the newest release.
@@ -44,16 +75,29 @@ fi
 # shellcheck disable=SC1091
 source "${venv_dir}/bin/activate"
 
-pip install --upgrade pip
+python -m pip install --upgrade pip
 
 extras="dev"
-if [[ "${1:-}" == "--voice" ]]; then
+if [[ "${install_voice}" == true ]]; then
   extras="dev,voice"
 fi
 
 echo "Installing gesture-control[${extras}] in editable mode..."
-pip install -e "${repo_root}[${extras}]"
+python -m pip install -e "${repo_root}[${extras}]"
+
+echo "Verifying installed runtime imports..."
+python -c "import cv2, mediapipe, numpy, gesture_control"
+if [[ "${install_voice}" == true ]]; then
+  python -c "import faster_whisper, sounddevice"
+fi
 
 echo ""
 echo "Setup complete. Activate the environment with:"
 echo "  source .venv/bin/activate"
+echo "Run the quality gate with:"
+echo "  ./scripts/check.sh"
+if [[ "${install_voice}" == true ]]; then
+  echo "Start local voice mode with:"
+  echo "  python -m gesture_control.app --voice"
+  echo "For live page click/type setup, see docs/CHROME_PAGE_BRIDGE.md."
+fi

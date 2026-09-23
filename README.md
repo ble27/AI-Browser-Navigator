@@ -5,11 +5,10 @@ local-first, cross-platform (macOS/Windows/Linux) virtual mouse and navigation
 tool built with Python, OpenCV, and MediaPipe, with accessibility as a
 first-class use case.
 
-> Status: M0 (scaffold), M1 (camera + hand-landmark debug overlay), and M2
-> (macOS virtual mouse) are implemented and unit-tested. Cursor control keeps
-> the newest camera frame, tracks the index fingertip, and freezes motion
-> during pinch approach so clicks stay on target. M2 awaits its final hardware
-> verification pass.
+> Status: M0-M2 and the macOS M5 voice/browser slice are implemented and
+> unit-tested. Local voice can open/search/navigate/scroll Chrome and, with the
+> optional first-party extension, click, focus, type, and submit named controls
+> on the active HTTPS page. Hardware QA checklist items remain to be completed.
 
 - Full product requirements: [`docs/PRD.md`](docs/PRD.md)
 - Contributor / AI-agent onboarding: [`AGENTS.md`](AGENTS.md)
@@ -20,13 +19,21 @@ first-class use case.
 
 ## Quickstart
 
+Prerequisites: macOS for input/voice automation, Google Chrome for browser
+control, and Python 3.11 or 3.12. The setup script creates an isolated `.venv`;
+no global Python packages are required.
+
 ```bash
-git clone <repo-url>
+git clone https://github.com/ble27/AI-Gestures-Tool.git
 cd AI-Gestures-Tool
-./scripts/setup_env.sh
+./scripts/setup_env.sh --voice
 source .venv/bin/activate
-python -m gesture_control.app --debug   # opens a webcam window with a hand-landmark overlay
+./scripts/check.sh
+python -m gesture_control.app --voice
 ```
+
+For gesture/camera development without the optional audio stack, run
+`./scripts/setup_env.sh` without `--voice`.
 
 The first `--debug` run downloads the MediaPipe HandLandmarker model
 (~8 MB, cached under `models/`). If the download fails with an SSL error, or
@@ -141,6 +148,21 @@ installed Chrome page bridge adds active-page commands:
 
 See [`docs/CHROME_PAGE_BRIDGE.md`](docs/CHROME_PAGE_BRIDGE.md) for the
 one-time unpacked-extension and Native Messaging host setup.
+
+### Enable live page click/type
+
+1. Open `chrome://extensions`, enable **Developer mode**, choose **Load
+   unpacked**, and select this repository's `chrome_extension/` directory.
+2. Copy the displayed 32-character extension ID.
+3. From the activated `.venv`, install the allow-listed native host:
+
+   ```bash
+   python scripts/manage_chrome_native_host.py install \
+     --extension-id YOUR_EXTENSION_ID
+   ```
+
+4. Restart Chrome, open an HTTPS page, and run
+   `python -m gesture_control.app --voice`.
 
 ## Safety
 
