@@ -14,6 +14,7 @@ first-class use case.
 - Contributor / AI-agent onboarding: [`AGENTS.md`](AGENTS.md)
 - Manual QA checklists: [`docs/QA_CHECKLISTS.md`](docs/QA_CHECKLISTS.md)
 - Chrome page bridge setup: [`docs/CHROME_PAGE_BRIDGE.md`](docs/CHROME_PAGE_BRIDGE.md)
+- WebAssign / homework voice: [`docs/WEBASSIGN_VOICE.md`](docs/WEBASSIGN_VOICE.md)
 - Deferred work / backlog: [`docs/BACKLOG.md`](docs/BACKLOG.md)
 - Known issues / environment gotchas: [`docs/KNOWN_ISSUES.md`](docs/KNOWN_ISSUES.md)
 
@@ -146,10 +147,17 @@ installed Chrome page bridge adds active-page commands:
 - `search for mechanical keyboard` uses the page's unique named search field,
   then falls back to omnibox search when no page search field is available
 
-See [`docs/CHROME_PAGE_BRIDGE.md`](docs/CHROME_PAGE_BRIDGE.md) for the
-one-time unpacked-extension and Native Messaging host setup.
+See [`docs/CHROME_PAGE_BRIDGE.md`](docs/CHROME_PAGE_BRIDGE.md) and
+[`docs/WEBASSIGN_VOICE.md`](docs/WEBASSIGN_VOICE.md) for the one-time
+unpacked-extension setup and WebAssign answer/submit phrases.
 
 ### Enable live page click/type
+
+```bash
+./scripts/setup_page_bridge.sh
+```
+
+Or manually:
 
 1. Open `chrome://extensions`, enable **Developer mode**, choose **Load
    unpacked**, and select this repository's `chrome_extension/` directory.
@@ -161,8 +169,15 @@ one-time unpacked-extension and Native Messaging host setup.
      --extension-id YOUR_EXTENSION_ID
    ```
 
-4. Restart Chrome, open an HTTPS page, and run
+4. Fully quit and reopen Chrome, open an HTTPS page (or the local
+   WebAssign fixture via `python scripts/serve_bridge_fixture.py`), and run
    `python -m gesture_control.app --voice`.
+
+Homework-oriented phrases on WebAssign-style pages:
+
+- `answer is 42` / `the answer is 42`
+- `type 9 into answer 1` / `type 8 into second answer`
+- `submit answer` / `submit`
 
 ## Safety
 

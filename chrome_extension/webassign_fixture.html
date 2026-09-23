@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>WebAssign-style Bridge Fixture</title>
+    <style>
+      body { font: 16px system-ui; margin: 2rem auto; max-width: 44rem; line-height: 1.4; }
+      .question { border: 1px solid #ccc; padding: 1rem; margin-block: 1.5rem; }
+      label { display: block; margin-top: 0.75rem; font-weight: 600; }
+      input[type="text"], textarea { width: 100%; font: inherit; padding: 0.5rem; margin-top: 0.35rem; }
+      .actions { margin-top: 1rem; display: flex; gap: 0.75rem; }
+      #status { margin-top: 1.5rem; padding: 0.75rem; background: #f4f4f4; }
+    </style>
+  </head>
+  <body>
+    <h1>WebAssign-style Bridge Fixture</h1>
+    <p>
+      Mimics LMS homework controls: labeled answer boxes, an
+      <code>&lt;input type="submit"&gt;</code> outside a form, and a same-origin iframe
+      question. Serve over HTTPS or <code>http://127.0.0.1</code>.
+    </p>
+
+    <section class="question" aria-label="Question 1">
+      <p><strong>1.</strong> What is 6 &times; 7?</p>
+      <label for="answer">Answer</label>
+      <input id="answer" name="answer" type="text" autocomplete="off">
+      <div class="actions">
+        <!-- Intentionally not wrapped in <form>: WebAssign often uses JS submit. -->
+        <input id="submit-answer" type="submit" value="Submit Answer">
+      </div>
+    </section>
+
+    <section class="question" aria-label="Question 2">
+      <p><strong>2.</strong> Enter parts (a) and (b).</p>
+      <label for="answer-a">Answer</label>
+      <input id="answer-a" name="answer_a" type="text" autocomplete="off">
+      <label for="answer-b">Answer</label>
+      <input id="answer-b" name="answer_b" type="text" autocomplete="off">
+      <div class="actions">
+        <button type="button" id="submit-parts">Submit</button>
+      </div>
+    </section>
+
+    <section class="question">
+      <p><strong>3.</strong> Nested same-origin iframe question.</p>
+      <iframe id="nested" title="Nested question" srcdoc='
+        <!doctype html>
+        <label for="iframe-answer">Answer</label>
+        <input id="iframe-answer" name="iframe_answer" type="text">
+        <button type="button" id="iframe-submit">Submit Answer</button>
+        <script>
+          document.getElementById("iframe-submit").onclick = () => {
+            parent.postMessage({source:"iframe", value: document.getElementById("iframe-answer").value}, "*");
+          };
+        </script>
+      ' style="width:100%;height:8rem;border:1px solid #999;"></iframe>
+    </section>
+
+    <div id="status" aria-live="polite">No submission yet.</div>
+
+    <script>
+      const status = document.getElementById("status");
+      document.getElementById("submit-answer").addEventListener("click", (event) => {
+        event.preventDefault();
+        status.textContent = `Submitted Q1: ${document.getElementById("answer").value || "(empty)"}`;
+      });
+      document.getElementById("answer").addEventListener("keydown", (event) => {
+        if (event.key === "Enter") {
+          event.preventDefault();
+          document.getElementById("submit-answer").click();
+        }
+      });
+      document.getElementById("submit-parts").addEventListener("click", () => {
+        status.textContent =
+          `Submitted Q2: a=${document.getElementById("answer-a").value || "(empty)"}, ` +
+          `b=${document.getElementById("answer-b").value || "(empty)"}`;
+      });
+      window.addEventListener("message", (event) => {
+        if (event.data && event.data.source === "iframe") {
+          status.textContent = `Submitted iframe: ${event.data.value || "(empty)"}`;
+        }
+      });
+    </script>
+  </body>
+</html>
