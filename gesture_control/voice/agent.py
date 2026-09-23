@@ -4,9 +4,10 @@ from __future__ import annotations
 
 from collections.abc import Callable
 
-from gesture_control.actions import ActionMapper
+from gesture_control.actions import ActionMapper, Intent
 from gesture_control.voice.audio import UtteranceRecorder
 from gesture_control.voice.commands import parse_command
+from gesture_control.voice.live_page import PageCommandUnavailableError
 from gesture_control.voice.transcription import VOICE_SAMPLE_RATE, Transcriber
 
 
@@ -19,6 +20,7 @@ class VoiceAgent:
         transcriber: Transcriber,
         action_mapper: ActionMapper,
         output: Callable[[str], None] = print,
+        page_resolver: Callable[[str], Intent | None] | None = None,
     ) -> None:
         """Wire the hardware-independent voice command loop.
 
@@ -27,11 +29,13 @@ class VoiceAgent:
             transcriber: Converts utterance audio to local text.
             action_mapper: Shared intent-to-backend dispatcher.
             output: Feedback sink, injectable for tests.
+            page_resolver: Optional active-page intent resolver.
         """
         self._recorder = recorder
         self._transcriber = transcriber
         self._action_mapper = action_mapper
         self._output = output
+        self._page_resolver = page_resolver
 
     def run_once(self) -> bool:
         """Process one utterance.
@@ -46,7 +50,13 @@ class VoiceAgent:
             return False
         self._output(f"Heard: {transcript}")
         utterance_duration_s = float(audio.size) / VOICE_SAMPLE_RATE
-        intent = parse_command(transcript, utterance_duration_s)
+        try:
+            intent = self._page_resolver(transcript) if self._page_resolver is not None else None
+        except PageCommandUnavailableError as exc:
+            self._output(f"Page command unavailable: {exc}")
+            return False
+        if intent is None:
+            intent = parse_command(transcript, utterance_duration_s)
         if intent is None:
             self._output("Unrecognized command.")
             return False

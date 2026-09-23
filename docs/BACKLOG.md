@@ -17,18 +17,14 @@ Tracked here instead of inline `TODO`s so `main` stays clean. Move items out
 
 ## Later voice / browser milestone
 
-- Live in-page actions in the user's already-open Chrome (click, type) via a
-  first-party extension and Native Messaging. The offline name resolver is
-  landing first. Do not attach the DevTools Protocol to the default Chrome
-  profile. See `docs/research/voice-html-navigation.md`.
 - Windows and Linux adapters for `InputBackend.open_url` (Chrome binary + URL).
   macOS uses `open -a "Google Chrome"`. The continuous `--voice` runtime is
   likewise macOS-only until those platforms have input backends and QA.
 - Wake word (`openWakeWord`) and confirmation TTS. The current `--voice`
   session starts listening only after explicit user launch and prints text
   feedback.
-- User-editable site allowlist in config. The built-in list is Cursor and Apple
-  plus an explicit `https://` URL.
+- User-editable named-site aliases in config. Built-in common aliases and
+  validated public domains are available now.
 
 ## Ideas to evaluate later (not committed to v1 scope)
 

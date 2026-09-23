@@ -101,10 +101,18 @@ def test_safe_pause_hotkey_spans_session_and_interrupt_exits_cleanly(
     class _Agent:
         """Interrupt from inside the session as a user pressing Ctrl-C would."""
 
-        def __init__(self, recorder: object, transcriber: object, action_mapper: object) -> None:
+        def __init__(
+            self,
+            recorder: object,
+            transcriber: object,
+            action_mapper: object,
+            *,
+            page_resolver: object,
+        ) -> None:
             assert recorder is not None
             assert transcriber is not None
             assert action_mapper is not None
+            assert page_resolver is not None
 
         def run_forever(self) -> None:
             timeline.append("agent-run")
@@ -117,10 +125,27 @@ def test_safe_pause_hotkey_spans_session_and_interrupt_exits_cleanly(
             timeline.append(f"model:{model_name}")
             del kwargs
 
-    monkeypatch.setattr(app, "MacOSInputBackend", _Backend)
+    class _Bridge:
+        def __enter__(self) -> _Bridge:
+            timeline.append("bridge-enter")
+            return self
+
+        def __exit__(self, *exc_info: object) -> None:
+            timeline.append("bridge-exit")
+
+    class _Resolver:
+        def __init__(self, bridge: object) -> None:
+            del bridge
+
+        def resolve(self, transcript: str) -> None:
+            del transcript
+
+    monkeypatch.setattr(app, "MacOSInputBackend", lambda page_bridge: _Backend())
     monkeypatch.setattr(app, "SafePauseHotkey", _Hotkey)
     monkeypatch.setattr(app, "ActionMapper", lambda backend: object())
+    monkeypatch.setattr("gesture_control.browser.bridge.ChromePageBridge", _Bridge)
     monkeypatch.setattr("gesture_control.voice.audio.MicrophoneUtteranceRecorder", object)
+    monkeypatch.setattr("gesture_control.voice.live_page.LivePageCommandResolver", _Resolver)
     monkeypatch.setattr(
         "gesture_control.voice.transcription.FasterWhisperTranscriber", _Transcriber
     )
@@ -128,8 +153,10 @@ def test_safe_pause_hotkey_spans_session_and_interrupt_exits_cleanly(
 
     assert app.run_voice_session(model_name="small.en") == 0
     assert timeline == [
+        "bridge-enter",
         "model:small.en",
         "hotkey-enter",
         "agent-run",
         "hotkey-exit",
+        "bridge-exit",
     ]

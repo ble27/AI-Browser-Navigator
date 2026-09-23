@@ -298,8 +298,15 @@ def test_voice_session_keeps_safe_pause_hotkey_active(
             events.append("hotkey-exit")
 
     class _Agent:
-        def __init__(self, recorder: object, transcriber: object, mapper: object) -> None:
-            del recorder, transcriber, mapper
+        def __init__(
+            self,
+            recorder: object,
+            transcriber: object,
+            mapper: object,
+            *,
+            page_resolver: object,
+        ) -> None:
+            del recorder, transcriber, mapper, page_resolver
 
         def run_forever(self) -> None:
             events.append("agent-run")
@@ -309,10 +316,27 @@ def test_voice_session_keeps_safe_pause_hotkey_active(
         def __init__(self, model_name: str) -> None:
             models.append(model_name)
 
-    monkeypatch.setattr(app, "MacOSInputBackend", _Backend)
+    class _Bridge:
+        def __enter__(self) -> _Bridge:
+            events.append("bridge-enter")
+            return self
+
+        def __exit__(self, *exc_info: object) -> None:
+            events.append("bridge-exit")
+
+    class _Resolver:
+        def __init__(self, bridge: object) -> None:
+            del bridge
+
+        def resolve(self, transcript: str) -> None:
+            del transcript
+
+    monkeypatch.setattr(app, "MacOSInputBackend", lambda page_bridge: _Backend())
     monkeypatch.setattr(app, "SafePauseHotkey", _Hotkey)
+    monkeypatch.setattr("gesture_control.browser.bridge.ChromePageBridge", _Bridge)
     monkeypatch.setattr("gesture_control.voice.agent.VoiceAgent", _Agent)
     monkeypatch.setattr("gesture_control.voice.audio.MicrophoneUtteranceRecorder", object)
+    monkeypatch.setattr("gesture_control.voice.live_page.LivePageCommandResolver", _Resolver)
     monkeypatch.setattr(
         "gesture_control.voice.transcription.FasterWhisperTranscriber",
         _Transcriber,
@@ -320,7 +344,13 @@ def test_voice_session_keeps_safe_pause_hotkey_active(
 
     assert app.run_voice_session("base.en") == 0
     assert models == ["base.en"]
-    assert events == ["hotkey-enter", "agent-run", "hotkey-exit"]
+    assert events == [
+        "bridge-enter",
+        "hotkey-enter",
+        "agent-run",
+        "hotkey-exit",
+        "bridge-exit",
+    ]
 
 
 def test_main_command_opens_cursor_in_the_injected_backend(

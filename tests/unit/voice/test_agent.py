@@ -4,9 +4,10 @@ from __future__ import annotations
 
 import numpy as np
 import pytest
-from gesture_control.actions import ActionMapper
+from gesture_control.actions import ActionMapper, Intent, IntentType
 from gesture_control.backends.base import BrowserAction, InputBackend
 from gesture_control.voice.agent import VoiceAgent
+from gesture_control.voice.live_page import PageCommandUnavailableError
 from numpy.typing import NDArray
 
 
@@ -33,6 +34,7 @@ class _Backend(InputBackend):
         super().__init__()
         self.browser_actions: list[BrowserAction] = []
         self.scroll_amounts: list[int] = []
+        self.clicked_elements: list[str] = []
 
     def screen_size(self) -> tuple[int, int]:
         return 100, 100
@@ -56,7 +58,7 @@ class _Backend(InputBackend):
         self.scroll_amounts.append(amount)
 
     def click_element(self, target_id: str) -> None:
-        del target_id
+        self.clicked_elements.append(target_id)
 
     def type_text(self, target_id: str, text: str) -> None:
         del target_id, text
@@ -154,3 +156,40 @@ def test_voice_loop_handles_multiple_utterances_before_interrupt() -> None:
 
     assert recorder.calls == 2
     assert backend.browser_actions == [BrowserAction.NEW_TAB, BrowserAction.RELOAD_PAGE]
+
+
+def test_voice_agent_prefers_live_page_resolution() -> None:
+    backend = _Backend()
+    agent = VoiceAgent(
+        _Recorder(),
+        _Transcriber("click add to cart"),
+        ActionMapper(backend),
+        lambda _message: None,
+        page_resolver=lambda _transcript: Intent(
+            IntentType.CLICK_ELEMENT,
+            target_id="cart",
+        ),
+    )
+
+    assert agent.run_once() is True
+    assert backend.clicked_elements == ["cart"]
+
+
+def test_voice_agent_reports_disconnected_page_bridge() -> None:
+    backend = _Backend()
+    output: list[str] = []
+
+    def unavailable(_transcript: str) -> Intent | None:
+        raise PageCommandUnavailableError("install the extension")
+
+    agent = VoiceAgent(
+        _Recorder(),
+        _Transcriber("click add to cart"),
+        ActionMapper(backend),
+        output.append,
+        page_resolver=unavailable,
+    )
+
+    assert agent.run_once() is False
+    assert backend.clicked_elements == []
+    assert output[-1] == "Page command unavailable: install the extension"

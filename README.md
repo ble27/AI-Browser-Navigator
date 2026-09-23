@@ -131,9 +131,16 @@ are rejected by the navigation grammar. Each backend operation checks
 SafePause immediately, though the
 one-shot `--command` process does not start the global pause hotkey listener.
 Wake word activation and TTS are not part of this slice. An independently
-testable Chrome page bridge is available but is not wired into the voice
-command or action-mapper path yet; see
-[`docs/CHROME_PAGE_BRIDGE.md`](docs/CHROME_PAGE_BRIDGE.md).
+installed Chrome page bridge adds active-page commands:
+
+- `click Add to Cart` / `press Log in`
+- `focus search` / `click the search box`
+- `type hello into email` / `fill email with hello`
+- `search for mechanical keyboard` uses the page's unique named search field,
+  then falls back to omnibox search when no page search field is available
+
+See [`docs/CHROME_PAGE_BRIDGE.md`](docs/CHROME_PAGE_BRIDGE.md) for the
+one-time unpacked-extension and Native Messaging host setup.
 
 ## Safety
 

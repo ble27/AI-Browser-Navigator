@@ -143,9 +143,11 @@ flowchart TD
   literal omnibox search (`SEARCH_WEB`), and signed page-unit scrolling
   (`SCROLL`; positive up, negative down). A plain spoken scroll scales from
   three to ten pages by captured audio duration; explicit modifiers win.
+  An opt-in first-party Chrome extension and Native Messaging host expose the
+  active HTTPS page's named controls for fixed click, focus, type, and
+  type-and-submit operations; no speech-generated JavaScript is executed.
   Every operation still passes through the Action Mapper and the backend's
-  SafePause gate. Wake word, TTS, and live in-page extension control remain
-  later work.
+  SafePause gate. Wake word and TTS remain later work.
 - Offline TTS via `Piper` for confirmations (e.g. "Paused", "Switched tab"),
   toggleable — important for blind/low-vision users.
 - **Stretch**: optional local LLM (Ollama) fallback for free-form phrasing, off
@@ -231,8 +233,9 @@ accessibility depth, then polish.
 6. **M5 — Voice agent v1** (wake word + offline STT + shared Action Mapper +
    offline TTS). In progress. Explicitly started `--voice` mode now captures
    microphone commands and transcribes them locally with faster-whisper before
-   dispatching browser navigation through the shared Action Mapper. Wake word,
-   text-to-speech, and clicking inside the open Chrome page are not in yet.
+   dispatching browser/page navigation through the shared Action Mapper. The
+   optional Chrome bridge supports named click/focus/type/submit actions.
+   Wake word and text-to-speech are not in yet.
 7. **M6 — Accessibility layer** (calibration wizard, profiles, one-handed
    audit, remapping). Not started.
 8. **M7 — Polish & packaging** (tray app, distributable builds, final docs). Not started.

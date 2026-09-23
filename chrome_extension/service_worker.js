@@ -67,14 +67,11 @@ function validatePageResponse(response) {
   return { ok: true, result: response.result };
 }
 
-async function activeHttpsTab() {
+async function activeTab() {
   const tabs = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
   const tab = tabs[0];
   if (!tab || typeof tab.id !== "number") {
     throw new Error("No active Chrome tab is available");
-  }
-  if (typeof tab.url !== "string" || !tab.url.startsWith("https://")) {
-    throw new Error("The active tab must be an HTTPS page");
   }
   return tab;
 }
@@ -87,7 +84,7 @@ async function handleNativeMessage(rawMessage) {
     }
     const request = validateRequest(rawMessage);
     requestId = request.request_id;
-    const tab = await activeHttpsTab();
+    const tab = await activeTab();
     const pageResponse = await chrome.tabs.sendMessage(tab.id, request);
     return { request_id: requestId, ...validatePageResponse(pageResponse) };
   } catch (error) {

@@ -6,9 +6,10 @@ Messaging transport, a Python relay process, and a user-private Unix-domain
 socket owned by the app. It opens no TCP port and never sends page data over
 the network.
 
-This slice deliberately does not wire the bridge into `ActionMapper` or
-`MacOSInputBackend`. Callers can integrate the API after installing and testing
-the transport independently.
+Continuous `--voice` mode starts this bridge and routes resolved click, focus,
+type, and type-and-submit intents through `ActionMapper` and
+`MacOSInputBackend`. Browser-wide commands continue to work without the
+extension; explicit page commands report that the bridge is unavailable.
 
 ## Install the unpacked extension
 
@@ -110,6 +111,14 @@ new snapshot after navigation or DOM replacement. The extension and Python
 ends both reject extra fields, unknown operation names, oversized text, invalid
 JSON, and oversized Native Messaging frames. No operation evaluates speech,
 JavaScript, selectors, or arbitrary code.
+
+Supported live-page phrases include:
+
+- `click Add to Cart`, `press Log in`, `tap the Continue button`
+- `focus search`, `select the email field`, `click the search box`
+- `type hello into email`, `enter hello in email`, `fill email with hello`
+- `search for mechanical keyboard` submits through a unique textbox whose
+  accessible name contains `search`; without one, it falls back to the omnibox
 
 ## Known limitations
 

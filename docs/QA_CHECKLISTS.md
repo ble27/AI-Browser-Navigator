@@ -35,8 +35,7 @@ word, or TTS. Focus Google Chrome before each navigation command.
 - [ ] `--command "refresh"` reloads the focused tab.
 - [ ] A paused `MacOSInputBackend` sends no navigation shortcut (unit-covered).
 - [ ] Extra words such as `next tab now` are rejected without sending keys.
-- [ ] No in-page extension click/type behavior is implied by this checklist;
-      the live Chrome page bridge remains disconnected.
+- [ ] One-shot `--command` navigation does not require the optional page bridge.
 
 ## Voice — local microphone runtime (macOS)
 
@@ -76,6 +75,22 @@ Focus Google Chrome and keep the SafePause hotkey available.
 - [ ] Holding a plain spoken `scroll down` longer increases its bounded
       magnitude, while `scroll down 2 pages` remains two pages.
 - [ ] Control+Option+Command+P blocks open, navigation, search, and scrolling.
+
+## Voice — live Chrome page controls
+
+Complete the setup in `docs/CHROME_PAGE_BRIDGE.md`, restart Chrome, open an
+ordinary HTTPS page, and start `--voice`.
+
+- [ ] `click <accessible button/link name>` activates one unique named control.
+- [ ] `focus search` and `click the search box` focus the unique named textbox.
+- [ ] `type <value> into <field>` replaces the named field value and dispatches
+      normal input/change events.
+- [ ] On Amazon or another page with one named search textbox, `search for X`
+      types and submits X; without a page search box it falls back to omnibox.
+- [ ] Ambiguous duplicate names do not guess or mutate the page.
+- [ ] Paused input blocks click, focus, type, and submit at the backend.
+- [ ] Disconnecting/uninstalling the extension produces actionable feedback;
+      browser-wide navigation/search/scroll commands continue working.
 
 ## M1 — Camera + hand landmark pipeline
 

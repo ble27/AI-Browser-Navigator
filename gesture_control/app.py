@@ -270,24 +270,32 @@ def run_voice_session(model_name: str = "tiny.en") -> int:
         f"Loading faster-whisper model {model_name!r}; " "the first use may download and cache it."
     )
     try:
+        from gesture_control.browser.bridge import ChromePageBridge
         from gesture_control.voice.agent import VoiceAgent
         from gesture_control.voice.audio import MicrophoneUtteranceRecorder
+        from gesture_control.voice.live_page import LivePageCommandResolver
         from gesture_control.voice.transcription import FasterWhisperTranscriber
 
-        backend = MacOSInputBackend()
-        agent = VoiceAgent(
-            MicrophoneUtteranceRecorder(),
-            FasterWhisperTranscriber(model_name=model_name),
-            ActionMapper(backend),
-        )
-        with SafePauseHotkey(
-            backend.safe_pause,
-            on_toggle=lambda paused: print(
-                f"Input {'paused' if paused else 'resumed'} " "(Ctrl+Option+Command+P)."
-            ),
-        ):
-            print("Listening for commands. Focus Google Chrome; " "press Ctrl+C to stop.")
-            agent.run_forever()
+        with ChromePageBridge() as page_bridge:
+            backend = MacOSInputBackend(page_bridge=page_bridge)
+            page_resolver = LivePageCommandResolver(page_bridge)
+            agent = VoiceAgent(
+                MicrophoneUtteranceRecorder(),
+                FasterWhisperTranscriber(model_name=model_name),
+                ActionMapper(backend),
+                page_resolver=page_resolver.resolve,
+            )
+            with SafePauseHotkey(
+                backend.safe_pause,
+                on_toggle=lambda paused: print(
+                    f"Input {'paused' if paused else 'resumed'} " "(Ctrl+Option+Command+P)."
+                ),
+            ):
+                print(
+                    "Listening for commands. Focus Google Chrome; "
+                    "press Ctrl+C to stop. Page click/type requires the Chrome bridge."
+                )
+                agent.run_forever()
     except KeyboardInterrupt:
         print("\nVoice mode stopped.")
         return 0
