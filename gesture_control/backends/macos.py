@@ -6,10 +6,13 @@ import ipaddress
 import re
 import subprocess
 from collections.abc import Callable
-from typing import Protocol
+from typing import TYPE_CHECKING, Protocol
 from urllib.parse import urlparse
 
 from gesture_control.backends.base import BrowserAction, InputBackend, SafePause
+
+if TYPE_CHECKING:
+    from gesture_control.browser.bridge import PageSnapshot
 
 _SAFE_PAUSE_HOTKEY = "<ctrl>+<alt>+<cmd>+p"
 _CHROME_SHORTCUTS: dict[BrowserAction, tuple[str, ...]] = {
@@ -139,58 +142,76 @@ class _MissingPageBridge:
     """Page actions used until a Chrome bridge is connected.
 
     Click and type stay explicit failures so a missing extension cannot look
-    like a successful click.
+    like a successful click. Snapshot fails the same way so page-first search
+    can fall back to the omnibox.
     """
 
-    def click(self, target_id: str) -> None:
-        """Refuse a page click when no bridge is connected.
+    def snapshot(self, timeout: float | None = None) -> PageSnapshot:
+        """Refuse snapshots when no bridge is connected.
 
         Args:
-            target_id: Indexed element id that would have been clicked.
+            timeout: Ignored. Present for Protocol compatibility.
 
         Raises:
             RuntimeError: Always. The Chrome page bridge is not connected.
         """
-        del target_id
+        del timeout
+        raise RuntimeError("No Chrome page bridge is connected; cannot snapshot the page.")
+
+    def click(self, target_id: str, timeout: float | None = None) -> None:
+        """Refuse a page click when no bridge is connected.
+
+        Args:
+            target_id: Indexed element id that would have been clicked.
+            timeout: Ignored. Present for Protocol compatibility.
+
+        Raises:
+            RuntimeError: Always. The Chrome page bridge is not connected.
+        """
+        del target_id, timeout
         raise RuntimeError("No Chrome page bridge is connected; cannot click a page element.")
 
-    def type_text(self, target_id: str, text: str) -> None:
+    def type_text(self, target_id: str, text: str, timeout: float | None = None) -> None:
         """Refuse typing when no bridge is connected.
 
         Args:
             target_id: Indexed element id that would have received text.
             text: Characters that would have been typed.
+            timeout: Ignored. Present for Protocol compatibility.
 
         Raises:
             RuntimeError: Always. The Chrome page bridge is not connected.
         """
-        del target_id, text
+        del target_id, text, timeout
         raise RuntimeError("No Chrome page bridge is connected; cannot type into a page element.")
 
-    def focus(self, target_id: str) -> None:
+    def focus(self, target_id: str, timeout: float | None = None) -> None:
         """Refuse page focus when no bridge is connected."""
-        del target_id
+        del target_id, timeout
         raise RuntimeError("No Chrome page bridge is connected; cannot focus a page element.")
 
-    def type_and_submit(self, target_id: str, text: str) -> None:
+    def type_and_submit(self, target_id: str, text: str, timeout: float | None = None) -> None:
         """Refuse page submission when no bridge is connected."""
-        del target_id, text
+        del target_id, text, timeout
         raise RuntimeError("No Chrome page bridge is connected; cannot submit page text.")
 
 
 class PageBridge(Protocol):
     """Fixed page operations a Chrome bridge may perform."""
 
-    def click(self, target_id: str) -> None:
+    def snapshot(self, timeout: float | None = None) -> PageSnapshot:
+        """Return the active-tab interactive element index."""
+
+    def click(self, target_id: str, timeout: float | None = None) -> None:
         """Activate the element with this index id."""
 
-    def type_text(self, target_id: str, text: str) -> None:
+    def type_text(self, target_id: str, text: str, timeout: float | None = None) -> None:
         """Insert literal text into the element with this index id."""
 
-    def focus(self, target_id: str) -> None:
+    def focus(self, target_id: str, timeout: float | None = None) -> None:
         """Focus the element with this index id."""
 
-    def type_and_submit(self, target_id: str, text: str) -> None:
+    def type_and_submit(self, target_id: str, text: str, timeout: float | None = None) -> None:
         """Insert and submit literal text through this element."""
 
 
@@ -291,12 +312,20 @@ class MacOSInputBackend(InputBackend):
         self._shortcut_sender(_CHROME_SHORTCUTS[action])
 
     def search_web(self, text: str) -> None:
-        """Search through Chrome's omnibox when the safe-pause gate is open.
+        """Search the active page when possible, otherwise the Chrome omnibox.
+
+        Prefers a unique on-page search textbox, or a unique search button that
+        reveals one (apple.com-style). Falls back to the omnibox injector when
+        the page bridge is absent or the page has no unique search control.
 
         Args:
             text: Literal query text to type and submit.
         """
         if self.safe_pause.is_paused or not text:
+            return
+        from gesture_control.browser.site_search import try_site_search
+
+        if try_site_search(self._page_bridge, text):
             return
         self._search_sender(text)
 
