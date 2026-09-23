@@ -119,7 +119,12 @@ Supported live-page phrases include:
 - `type hello into email`, `enter hello in email`, `fill email with hello`
 - `search for mechanical keyboard` submits through a unique textbox whose
   accessible name contains `search`; without one, it falls back to the omnibox
+- Homework / WebAssign-style: `answer is 42`, `the answer is 3.14`,
+  `type 9 into answer 1`, `type 8 into second answer`, `submit answer`
 
+Local fixture testing may use `http://127.0.0.1` / `http://localhost` via
+`python scripts/serve_bridge_fixture.py`. Production sites such as WebAssign
+continue to use HTTPS.
 ## Known limitations
 
 - CAPTCHA and other anti-automation controls are not supported.
@@ -130,4 +135,6 @@ Supported live-page phrases include:
   placeholder, visible text, or title) are omitted.
 - Highly dynamic pages can replace an element after a snapshot; the operation
   then fails and the caller must request a fresh snapshot.
-- Form submission requires the target textbox to be inside a form.
+- Form submission prefers ``form.requestSubmit()`` when a ``<form>`` wraps the
+  field; otherwise the bridge presses Enter so LMS widgets without a form
+  (common on WebAssign) still receive a submit signal.

@@ -9,28 +9,91 @@
   let nextElementId = 1;
 
   function isSupportedPage() {
-    return window.top === window && window.location.protocol === "https:";
+    if (window.top !== window) {
+      return false;
+    }
+    if (window.location.protocol === "https:") {
+      return true;
+    }
+    // Loopback HTTP is allowed only for local fixture testing.
+    return (
+      window.location.protocol === "http:" &&
+      (window.location.hostname === "127.0.0.1" || window.location.hostname === "localhost")
+    );
   }
 
   function normalizedText(value) {
     return String(value || "").replace(/\s+/g, " ").trim();
   }
 
+  function humanizeIdentifier(value) {
+    return normalizedText(
+      String(value || "")
+        .replace(/[_\-]+/g, " ")
+        .replace(/([a-z])([A-Z])/g, "$1 $2")
+    );
+  }
+
   function associatedLabel(element) {
     if ("labels" in element && element.labels && element.labels.length > 0) {
       return normalizedText(Array.from(element.labels, (label) => label.innerText).join(" "));
+    }
+    const labelledBy = element.getAttribute("aria-labelledby");
+    if (labelledBy) {
+      const owner = element.ownerDocument;
+      const parts = labelledBy
+        .split(/\s+/)
+        .map((id) => owner.getElementById(id))
+        .filter(Boolean)
+        .map((node) => normalizedText(node.innerText));
+      const joined = normalizedText(parts.join(" "));
+      if (joined) {
+        return joined;
+      }
     }
     return "";
   }
 
   function accessibleName(element) {
-    return (
-      normalizedText(element.getAttribute("aria-label")) ||
-      associatedLabel(element) ||
-      normalizedText(element.getAttribute("placeholder")) ||
-      normalizedText(element.innerText) ||
-      normalizedText(element.getAttribute("title"))
-    );
+    const aria = normalizedText(element.getAttribute("aria-label"));
+    if (aria) {
+      return aria;
+    }
+    const label = associatedLabel(element);
+    if (label) {
+      return label;
+    }
+    const placeholder = normalizedText(element.getAttribute("placeholder"));
+    if (placeholder) {
+      return placeholder;
+    }
+    // WebAssign and other LMS pages often use <input type="submit" value="Submit Answer">.
+    if (
+      element instanceof HTMLInputElement &&
+      ["button", "submit", "reset", "image"].includes(element.type)
+    ) {
+      const valueName = normalizedText(element.value || element.getAttribute("alt"));
+      if (valueName) {
+        return valueName;
+      }
+    }
+    const inner = normalizedText(element.innerText);
+    if (inner) {
+      return inner;
+    }
+    const title = normalizedText(element.getAttribute("title"));
+    if (title) {
+      return title;
+    }
+    const nameAttr = humanizeIdentifier(element.getAttribute("name"));
+    if (nameAttr) {
+      return nameAttr;
+    }
+    const idAttr = humanizeIdentifier(element.id);
+    if (idAttr) {
+      return idAttr;
+    }
+    return "";
   }
 
   function roleFor(element) {
@@ -74,6 +137,20 @@
     );
   }
 
+  function* iterDocuments(rootDocument) {
+    yield rootDocument;
+    for (const iframe of rootDocument.querySelectorAll("iframe")) {
+      try {
+        const child = iframe.contentDocument;
+        if (child) {
+          yield* iterDocuments(child);
+        }
+      } catch (_error) {
+        // Cross-origin iframes are intentionally skipped.
+      }
+    }
+  }
+
   function idFor(element) {
     let id = elementIds.get(element);
     if (!id) {
@@ -99,11 +176,13 @@
       "[role='checkbox']"
     ].join(",");
     const elements = [];
-    for (const element of document.querySelectorAll(selector)) {
-      const role = roleFor(element);
-      const name = accessibleName(element);
-      if (role && name && isVisible(element)) {
-        elements.push({ id: idFor(element), role, name });
+    for (const doc of iterDocuments(document)) {
+      for (const element of doc.querySelectorAll(selector)) {
+        const role = roleFor(element);
+        const name = accessibleName(element);
+        if (role && name && isVisible(element)) {
+          elements.push({ id: idFor(element), role, name });
+        }
       }
     }
     return { url: window.location.href, title: document.title, elements };
@@ -142,9 +221,38 @@
     element.dispatchEvent(new Event("change", { bubbles: true }));
   }
 
+  function pressEnter(element) {
+    for (const type of ["keydown", "keypress", "keyup"]) {
+      element.dispatchEvent(
+        new KeyboardEvent(type, {
+          key: "Enter",
+          code: "Enter",
+          keyCode: 13,
+          which: 13,
+          bubbles: true,
+          cancelable: true
+        })
+      );
+    }
+  }
+
+  function submitThroughField(element) {
+    const form = element.closest("form");
+    if (form) {
+      if (typeof form.requestSubmit === "function") {
+        form.requestSubmit();
+      } else {
+        form.submit();
+      }
+      return;
+    }
+    // LMS widgets (WebAssign-style) often listen for Enter outside a <form>.
+    pressEnter(element);
+  }
+
   function execute(request) {
     if (!isSupportedPage()) {
-      throw new Error("Only top-level HTTPS pages are supported");
+      throw new Error("Only top-level HTTPS pages (or http://127.0.0.1/localhost) are supported");
     }
     if (!request || typeof request !== "object" || Array.isArray(request)) {
       throw new Error("Request must be an object");
@@ -168,11 +276,7 @@
       target.focus();
       setElementValue(target, request.text);
       if (request.operation === "submit") {
-        const form = target.closest("form");
-        if (!form) {
-          throw new Error("Target is not inside a form");
-        }
-        form.requestSubmit();
+        submitThroughField(target);
       }
       return {};
     }
