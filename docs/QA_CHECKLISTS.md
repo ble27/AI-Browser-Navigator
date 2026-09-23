@@ -160,6 +160,13 @@ ordinary HTTPS page, and start `--voice`.
 - [ ] On the HTTPS-served or loopback `webassign_fixture.html`, voice/phrases
       `answer is 42` and `submit answer` fill the Answer box and click Submit
       Answer even when the control is outside a `<form>`.
+- [ ] On the loopback `apple_fixture.html`, `--dump-page` lists
+      `Search apple.com`, and `search for airpods` opens the collapsed search
+      control then submits into the revealed combobox. Open-shadow `Buy` is
+      listed.
+- [ ] On a real `https://www.apple.com` tab, `--dump-page` shows
+      `Search apple.com`; `search for macbook` drives site search (or omnibox
+      fallback if the control is ambiguous).
 - [ ] On the HTTPS-served `chrome_extension/test_fixture.html`, click, focus,
       type, type-and-submit, and checkbox click all work using snapshot IDs.
 - [ ] `chrome://extensions`, a `file://` fixture, and a non-active HTTPS tab

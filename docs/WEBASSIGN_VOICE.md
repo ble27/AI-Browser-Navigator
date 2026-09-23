@@ -46,6 +46,12 @@ source .venv/bin/activate
 python -m gesture_control.app --voice
 ```
 
+Discover speakable names on the focused tab anytime:
+
+```bash
+python -m gesture_control.app --dump-page
+```
+
 Useful phrases:
 
 | Say | Effect |
@@ -69,6 +75,17 @@ Safe-pause remains **Control+Option+Command+P**.
 
 ## Relation to ordinary websites
 
-The same bridge powers Amazon/Google/etc.: `click …`, `fill … with …`,
+The same bridge powers Amazon/Google/apple.com/etc.: `click …`, `fill … with …`,
 `search for …`, scroll, and tab commands. WebAssign-specific phrases are
 extra vocabulary on top of that shared path.
+
+On apple.com, `search for airpods` opens the collapsed **Search apple.com**
+control when needed, then types into the revealed field. If names look wrong,
+reload the unpacked extension and run `--dump-page` on the focused tab.
+
+Local fixtures:
+
+```bash
+python scripts/serve_bridge_fixture.py
+# open webassign_fixture.html or apple_fixture.html from the printed URLs
+```
