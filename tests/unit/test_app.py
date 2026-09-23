@@ -189,6 +189,97 @@ def test_build_arg_parser_accepts_command() -> None:
     assert parser.parse_args([]).command is None
 
 
+def test_build_arg_parser_accepts_voice_mode_and_model() -> None:
+    """Voice mode should default to tiny.en and accept another local model."""
+    parser = build_arg_parser()
+
+    defaults = parser.parse_args(["--voice"])
+    configured = parser.parse_args(["--voice", "--voice-model", "base.en"])
+
+    assert defaults.voice is True
+    assert defaults.voice_model == "tiny.en"
+    assert configured.voice_model == "base.en"
+
+
+@pytest.mark.parametrize(
+    "argv",
+    [
+        ["--voice", "--debug"],
+        ["--voice", "--command", "reload"],
+        ["--debug", "--command", "reload"],
+    ],
+)
+def test_runtime_modes_are_mutually_exclusive(argv: list[str]) -> None:
+    """Camera, one-shot command, and microphone modes cannot overlap."""
+    with pytest.raises(SystemExit, match="2"):
+        build_arg_parser().parse_args(argv)
+
+
+def test_main_routes_voice_mode_with_selected_model(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """``--voice`` should start the local session with the requested model."""
+    models: list[str] = []
+
+    def fake_run_voice_session(model_name: str = "tiny.en") -> int:
+        models.append(model_name)
+        return 0
+
+    monkeypatch.setattr(app, "run_voice_session", fake_run_voice_session)
+    monkeypatch.setattr(app.sys, "platform", "darwin")
+
+    assert main(["--voice", "--voice-model", "base.en"]) == 0
+    assert models == ["base.en"]
+
+
+def test_voice_session_keeps_safe_pause_hotkey_active(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The hotkey context should surround the entire continuous agent loop."""
+    events: list[str] = []
+    models: list[str] = []
+
+    class _Backend:
+        safe_pause = object()
+
+    class _Hotkey:
+        def __init__(self, safe_pause: object, on_toggle: object) -> None:
+            del on_toggle
+            assert safe_pause is _Backend.safe_pause
+
+        def __enter__(self) -> _Hotkey:
+            events.append("hotkey-enter")
+            return self
+
+        def __exit__(self, *exc_info: object) -> None:
+            events.append("hotkey-exit")
+
+    class _Agent:
+        def __init__(self, recorder: object, transcriber: object, mapper: object) -> None:
+            del recorder, transcriber, mapper
+
+        def run_forever(self) -> None:
+            events.append("agent-run")
+            raise KeyboardInterrupt
+
+    class _Transcriber:
+        def __init__(self, model_name: str) -> None:
+            models.append(model_name)
+
+    monkeypatch.setattr(app, "MacOSInputBackend", _Backend)
+    monkeypatch.setattr(app, "SafePauseHotkey", _Hotkey)
+    monkeypatch.setattr("gesture_control.voice.agent.VoiceAgent", _Agent)
+    monkeypatch.setattr("gesture_control.voice.audio.MicrophoneUtteranceRecorder", object)
+    monkeypatch.setattr(
+        "gesture_control.voice.transcription.FasterWhisperTranscriber",
+        _Transcriber,
+    )
+
+    assert app.run_voice_session("base.en") == 0
+    assert models == ["base.en"]
+    assert events == ["hotkey-enter", "agent-run", "hotkey-exit"]
+
+
 def test_main_command_opens_cursor_in_the_injected_backend(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

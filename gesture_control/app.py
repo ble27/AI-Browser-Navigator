@@ -1,8 +1,7 @@
 """Command-line entrypoint for the gesture control application.
 
-Milestone status: M2 adds opt-in macOS cursor movement and pinch clicking to
-the M1 camera and hand-landmark debug overlay. ``--command`` opens an
-allowlisted site in Google Chrome without starting the camera.
+Milestone status: macOS supports opt-in cursor control, deterministic Chrome
+commands, and an explicitly started local microphone voice loop.
 """
 
 from __future__ import annotations
@@ -54,7 +53,8 @@ def build_arg_parser() -> argparse.ArgumentParser:
         prog="gesture-control",
         description="Control your computer with hand gestures and voice.",
     )
-    parser.add_argument(
+    modes = parser.add_mutually_exclusive_group()
+    modes.add_argument(
         "--debug",
         action="store_true",
         help="Show a debug window with the camera feed and hand landmark overlay.",
@@ -73,7 +73,7 @@ def build_arg_parser() -> argparse.ArgumentParser:
             "press Ctrl+Option+Command+P at any time to pause or resume input."
         ),
     )
-    parser.add_argument(
+    modes.add_argument(
         "--command",
         type=str,
         default=None,
@@ -82,6 +82,19 @@ def build_arg_parser() -> argparse.ArgumentParser:
             '"open cursor webpage", "next tab", or "reload". macOS only; skips '
             "the camera debug overlay."
         ),
+    )
+    modes.add_argument(
+        "--voice",
+        action="store_true",
+        help=(
+            "Continuously listen for local deterministic Chrome commands through "
+            "the default microphone. macOS only; press Ctrl+C to stop."
+        ),
+    )
+    parser.add_argument(
+        "--voice-model",
+        default="tiny.en",
+        help=("faster-whisper model id or local directory used by --voice " "(default: tiny.en)."),
     )
     parser.add_argument(
         "--version",
@@ -204,11 +217,56 @@ def run_voice_command(command: str) -> int:
     return 0
 
 
+def run_voice_session(model_name: str = "tiny.en") -> int:
+    """Run continuous local microphone commands for macOS Chrome.
+
+    Optional audio and transcription modules are imported only when this mode
+    is explicitly selected, keeping gesture-only startup independent of voice
+    packages.
+
+    Args:
+        model_name: faster-whisper model id or local model directory.
+
+    Returns:
+        ``0`` after a clean Ctrl+C shutdown, or ``1`` when voice setup/runtime
+        fails.
+    """
+    print("Local voice mode uses the default microphone and never uploads audio.")
+    print(
+        f"Loading faster-whisper model {model_name!r}; " "the first use may download and cache it."
+    )
+    try:
+        from gesture_control.voice.agent import VoiceAgent
+        from gesture_control.voice.audio import MicrophoneUtteranceRecorder
+        from gesture_control.voice.transcription import FasterWhisperTranscriber
+
+        backend = MacOSInputBackend()
+        agent = VoiceAgent(
+            MicrophoneUtteranceRecorder(),
+            FasterWhisperTranscriber(model_name=model_name),
+            ActionMapper(backend),
+        )
+        with SafePauseHotkey(
+            backend.safe_pause,
+            on_toggle=lambda paused: print(
+                f"Input {'paused' if paused else 'resumed'} " "(Ctrl+Option+Command+P)."
+            ),
+        ):
+            print("Listening for commands. Focus Google Chrome; " "press Ctrl+C to stop.")
+            agent.run_forever()
+    except KeyboardInterrupt:
+        print("\nVoice mode stopped.")
+        return 0
+    except RuntimeError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 1
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     """Run the gesture control application.
 
-    When ``--command`` is set, runs :func:`run_voice_command` instead of the
-    camera debug overlay (even if ``--debug`` is also present).
+    Command, continuous voice, and camera-debug modes are mutually exclusive.
 
     Args:
         argv: Command-line arguments, excluding the program name. Defaults to
@@ -226,8 +284,12 @@ def main(argv: list[str] | None = None) -> int:
         parser.error("--control is currently supported on macOS only.")
     if args.command is not None and sys.platform != "darwin":
         parser.error("--command is currently supported on macOS only.")
+    if args.voice and sys.platform != "darwin":
+        parser.error("--voice is currently supported on macOS only.")
     if args.command is not None:
         return run_voice_command(args.command)
+    if args.voice:
+        return run_voice_session(args.voice_model)
     if args.debug:
         return run_debug_overlay(camera_index=args.camera_index, control=args.control)
 
