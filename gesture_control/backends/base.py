@@ -75,3 +75,20 @@ class InputBackend(ABC):
         Args:
             url: Absolute URL the platform adapter should open.
         """
+
+    @abstractmethod
+    def click_element(self, target_id: str) -> None:
+        """Activate a page element unless input injection is paused.
+
+        Args:
+            target_id: Id from the page index, such as ``e1``.
+        """
+
+    @abstractmethod
+    def type_text(self, target_id: str, text: str) -> None:
+        """Type literal text into a page field unless input injection is paused.
+
+        Args:
+            target_id: Id of the textbox from the page index.
+            text: Characters to insert. This is never evaluated as code.
+        """

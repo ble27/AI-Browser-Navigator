@@ -33,6 +33,49 @@ def _open_url_in_google_chrome(url: str) -> None:
     subprocess.run(["open", "-a", "Google Chrome", url], check=False)
 
 
+class _MissingPageBridge:
+    """Page actions used until a Chrome bridge is connected.
+
+    Click and type stay explicit failures so a missing extension cannot look
+    like a successful click.
+    """
+
+    def click(self, target_id: str) -> None:
+        """Refuse a page click when no bridge is connected.
+
+        Args:
+            target_id: Indexed element id that would have been clicked.
+
+        Raises:
+            RuntimeError: Always. The Chrome page bridge is not connected.
+        """
+        del target_id
+        raise RuntimeError("No Chrome page bridge is connected; cannot click a page element.")
+
+    def type_text(self, target_id: str, text: str) -> None:
+        """Refuse typing when no bridge is connected.
+
+        Args:
+            target_id: Indexed element id that would have received text.
+            text: Characters that would have been typed.
+
+        Raises:
+            RuntimeError: Always. The Chrome page bridge is not connected.
+        """
+        del target_id, text
+        raise RuntimeError("No Chrome page bridge is connected; cannot type into a page element.")
+
+
+class PageBridge(Protocol):
+    """Fixed page operations a Chrome bridge may perform."""
+
+    def click(self, target_id: str) -> None:
+        """Activate the element with this index id."""
+
+    def type_text(self, target_id: str, text: str) -> None:
+        """Insert literal text into the element with this index id."""
+
+
 class MacOSInputBackend(InputBackend):
     """Inject mouse input through pynput on macOS."""
 
@@ -40,6 +83,7 @@ class MacOSInputBackend(InputBackend):
         self,
         safe_pause: SafePause | None = None,
         opener: Callable[[str], None] | None = None,
+        page_bridge: PageBridge | None = None,
     ) -> None:
         """Create a macOS mouse controller.
 
@@ -47,6 +91,8 @@ class MacOSInputBackend(InputBackend):
             safe_pause: A gate shared with the global pause hotkey.
             opener: Optional URL opener used by :meth:`open_url`. Defaults to
                 launching Google Chrome with ``open -a``.
+            page_bridge: Optional in-page click/type bridge. Defaults to a
+                bridge that refuses page actions until Chrome is connected.
         """
         super().__init__(safe_pause=safe_pause)
         from pynput import mouse
@@ -55,6 +101,7 @@ class MacOSInputBackend(InputBackend):
         self._left_button = mouse.Button.left
         self._last_position: tuple[int, int] | None = None
         self._opener = opener if opener is not None else _open_url_in_google_chrome
+        self._page_bridge = page_bridge if page_bridge is not None else _MissingPageBridge()
 
     def screen_size(self) -> tuple[int, int]:
         """Return the primary screen dimensions in pixels."""
@@ -98,6 +145,27 @@ class MacOSInputBackend(InputBackend):
         if parsed.username is not None or parsed.password is not None:
             return
         self._opener(url)
+
+    def click_element(self, target_id: str) -> None:
+        """Click an indexed page element when the safe-pause gate is open.
+
+        Args:
+            target_id: Id from the page index, such as ``e1``.
+        """
+        if self.safe_pause.is_paused:
+            return
+        self._page_bridge.click(target_id)
+
+    def type_text(self, target_id: str, text: str) -> None:
+        """Type literal text into an indexed field when the gate is open.
+
+        Args:
+            target_id: Id of the textbox from the page index.
+            text: Characters to insert. Never evaluated as code.
+        """
+        if self.safe_pause.is_paused:
+            return
+        self._page_bridge.type_text(target_id, text)
 
 
 class SafePauseHotkey:

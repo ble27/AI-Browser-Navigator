@@ -210,6 +210,12 @@ def test_main_command_opens_cursor_in_the_injected_backend(
         def open_url(self, url: str) -> None:
             opened_urls.append(url)
 
+        def click_element(self, target_id: str) -> None:
+            del target_id
+
+        def type_text(self, target_id: str, text: str) -> None:
+            del target_id, text
+
     def _fail_overlay(*args: object, **kwargs: object) -> int:
         raise AssertionError("run_debug_overlay must not start for --command")
 
@@ -243,6 +249,12 @@ def test_main_command_unknown_phrase_opens_nothing(
 
         def open_url(self, url: str) -> None:
             opened_urls.append(url)
+
+        def click_element(self, target_id: str) -> None:
+            del target_id
+
+        def type_text(self, target_id: str, text: str) -> None:
+            del target_id, text
 
     def _fail_overlay(*args: object, **kwargs: object) -> int:
         raise AssertionError("run_debug_overlay must not start for --command")

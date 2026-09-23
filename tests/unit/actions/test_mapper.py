@@ -15,6 +15,8 @@ class _FakeBackend(InputBackend):
         self.moves: list[tuple[int, int]] = []
         self.click_count = 0
         self.opened_urls: list[str] = []
+        self.clicked_elements: list[str] = []
+        self.typed: list[tuple[str, str]] = []
 
     def screen_size(self) -> tuple[int, int]:
         return 100, 100
@@ -30,6 +32,14 @@ class _FakeBackend(InputBackend):
     def open_url(self, url: str) -> None:
         if not self.safe_pause.is_paused:
             self.opened_urls.append(url)
+
+    def click_element(self, target_id: str) -> None:
+        if not self.safe_pause.is_paused:
+            self.clicked_elements.append(target_id)
+
+    def type_text(self, target_id: str, text: str) -> None:
+        if not self.safe_pause.is_paused:
+            self.typed.append((target_id, text))
 
 
 def test_action_mapper_dispatches_cursor_move_and_click() -> None:
@@ -93,3 +103,52 @@ def test_safe_pause_blocks_open_url() -> None:
     mapper.dispatch(Intent(IntentType.OPEN_URL, url="https://www.apple.com"))
 
     assert backend.opened_urls == []
+
+
+def test_action_mapper_clicks_a_named_page_element() -> None:
+    """CLICK_ELEMENT should forward the indexed element id."""
+    backend = _FakeBackend()
+    ActionMapper(backend).dispatch(Intent(IntentType.CLICK_ELEMENT, target_id="e1"))
+
+    assert backend.clicked_elements == ["e1"]
+
+
+def test_click_element_intent_requires_a_target_id() -> None:
+    """CLICK_ELEMENT without a target must raise and must not click."""
+    backend = _FakeBackend()
+
+    with pytest.raises(ValueError, match="target_id"):
+        ActionMapper(backend).dispatch(Intent(IntentType.CLICK_ELEMENT))
+
+    assert backend.clicked_elements == []
+
+
+def test_action_mapper_types_into_a_named_field() -> None:
+    """TYPE_TEXT should forward the field id and the literal text."""
+    backend = _FakeBackend()
+    ActionMapper(backend).dispatch(Intent(IntentType.TYPE_TEXT, target_id="e2", text="hello"))
+
+    assert backend.typed == [("e2", "hello")]
+
+
+def test_type_text_intent_requires_text() -> None:
+    """TYPE_TEXT without text must raise and must not type."""
+    backend = _FakeBackend()
+
+    with pytest.raises(ValueError, match="text"):
+        ActionMapper(backend).dispatch(Intent(IntentType.TYPE_TEXT, target_id="e2"))
+
+    assert backend.typed == []
+
+
+def test_safe_pause_blocks_page_actions() -> None:
+    """A paused backend must not click or type even when those intents are dispatched."""
+    backend = _FakeBackend()
+    backend.safe_pause.toggle()
+    mapper = ActionMapper(backend)
+
+    mapper.dispatch(Intent(IntentType.CLICK_ELEMENT, target_id="e1"))
+    mapper.dispatch(Intent(IntentType.TYPE_TEXT, target_id="e2", text="hello"))
+
+    assert backend.clicked_elements == []
+    assert backend.typed == []

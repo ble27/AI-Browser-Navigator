@@ -144,3 +144,57 @@ def test_default_opener_launches_google_chrome(monkeypatch: pytest.MonkeyPatch) 
             "check": False,
         }
     ]
+
+
+class _RecordingPageBridge:
+    """Record page click and type calls without a browser."""
+
+    def __init__(self) -> None:
+        self.clicks: list[str] = []
+        self.typed: list[tuple[str, str]] = []
+
+    def click(self, target_id: str) -> None:
+        """Record one element click."""
+        self.clicks.append(target_id)
+
+    def type_text(self, target_id: str, text: str) -> None:
+        """Record one type action."""
+        self.typed.append((target_id, text))
+
+
+def _backend_with_page_bridge() -> tuple[MacOSInputBackend, _RecordingPageBridge]:
+    """Create a backend whose page actions go to a recorder."""
+    backend, _mouse = _backend_with_fake_mouse()
+    bridge = _RecordingPageBridge()
+    backend._page_bridge = bridge
+    return backend, bridge
+
+
+def test_click_element_reaches_the_page_bridge() -> None:
+    """An element click should be handed to the page bridge unchanged."""
+    backend, bridge = _backend_with_page_bridge()
+
+    backend.click_element("e1")
+
+    assert bridge.clicks == ["e1"]
+
+
+def test_type_text_reaches_the_page_bridge() -> None:
+    """Typed text should be handed to the page bridge as a literal."""
+    backend, bridge = _backend_with_page_bridge()
+
+    backend.type_text("e2", "hello")
+
+    assert bridge.typed == [("e2", "hello")]
+
+
+def test_paused_backend_does_not_call_the_page_bridge() -> None:
+    """Safe-pause must block page click and type before the bridge."""
+    backend, bridge = _backend_with_page_bridge()
+    backend.safe_pause.toggle()
+
+    backend.click_element("e1")
+    backend.type_text("e2", "hello")
+
+    assert bridge.clicks == []
+    assert bridge.typed == []

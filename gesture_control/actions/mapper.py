@@ -58,8 +58,10 @@ class ActionMapper:
             intent: The gesture or voice action to perform.
 
         Raises:
-            ValueError: If a cursor movement intent omits a coordinate, or an
-                ``OPEN_URL`` intent omits ``url``.
+            ValueError: If a cursor movement intent omits a coordinate, an
+                ``OPEN_URL`` intent omits ``url``, a ``CLICK_ELEMENT`` intent
+                omits ``target_id``, or a ``TYPE_TEXT`` intent omits
+                ``target_id`` or ``text``.
         """
         if intent.kind is IntentType.MOVE_CURSOR:
             if intent.x is None or intent.y is None:
@@ -71,3 +73,11 @@ class ActionMapper:
             if intent.url is None:
                 raise ValueError("OPEN_URL intents require a url.")
             self._backend.open_url(intent.url)
+        elif intent.kind is IntentType.CLICK_ELEMENT:
+            if not intent.target_id:
+                raise ValueError("CLICK_ELEMENT intents require a target_id.")
+            self._backend.click_element(intent.target_id)
+        elif intent.kind is IntentType.TYPE_TEXT:
+            if not intent.target_id or intent.text is None:
+                raise ValueError("TYPE_TEXT intents require a target_id and text.")
+            self._backend.type_text(intent.target_id, intent.text)
