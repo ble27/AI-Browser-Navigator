@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import numpy as np
 import pytest
-from gesture_control.voice.audio import RecordingConfig, UtteranceSegmenter
+from gesture_control.voice.audio import RecordingConfig, UtteranceSegmenter, _root_mean_square
 from numpy.typing import NDArray
 
 
@@ -63,3 +63,30 @@ def test_segmenter_rejects_wrong_block_shape_and_dtype() -> None:
         segmenter.add_block(np.zeros(config.block_size - 1, dtype=np.float32))
     with pytest.raises(ValueError, match="float32"):
         segmenter.add_block(np.zeros(config.block_size, dtype=np.float64))  # type: ignore[arg-type]
+
+
+def test_root_mean_square_preserves_signed_sample_energy() -> None:
+    block = np.array([0.5, -0.5, 0.5, -0.5], dtype=np.float32)
+
+    assert _root_mean_square(block) == pytest.approx(0.5)
+
+
+def test_segmenter_requires_contiguous_trailing_silence() -> None:
+    config = RecordingConfig(
+        block_duration_s=0.1,
+        speech_threshold=0.1,
+        min_speech_s=0.1,
+        pre_roll_s=0.1,
+        trailing_silence_s=0.2,
+        max_utterance_s=2.0,
+    )
+    segmenter = UtteranceSegmenter(config)
+
+    assert segmenter.add_block(_block(config, 0.2)) is None
+    assert segmenter.add_block(_block(config, 0.0)) is None
+    assert segmenter.add_block(_block(config, 0.2)) is None
+    assert segmenter.add_block(_block(config, 0.0)) is None
+    utterance = segmenter.add_block(_block(config, 0.0))
+
+    assert utterance is not None
+    assert utterance.size == config.block_size * 5

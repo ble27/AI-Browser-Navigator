@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import builtins
 from collections.abc import Iterable
 from dataclasses import dataclass
 
@@ -109,3 +110,72 @@ def test_model_initialization_error_is_actionable() -> None:
 
     with pytest.raises(RuntimeError, match="first run may need internet"):
         FasterWhisperTranscriber(model_factory=failing_factory)
+
+
+def test_empty_segments_produce_an_empty_transcript() -> None:
+    class _EmptyModel(_FakeModel):
+        def transcribe(
+            self,
+            audio: NDArray[np.float32],
+            *,
+            language: str,
+            beam_size: int,
+            vad_filter: bool,
+            condition_on_previous_text: bool,
+        ) -> tuple[Iterable[_FakeSegment], object]:
+            del audio, language, beam_size, vad_filter, condition_on_previous_text
+            return iter(()), object()
+
+    transcriber = FasterWhisperTranscriber(
+        model_factory=lambda _name, _device, _compute: _EmptyModel()
+    )
+
+    assert transcriber.transcribe(np.zeros(16, dtype=np.float32)) == ""
+
+
+def test_missing_faster_whisper_dependency_has_actionable_error(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    real_import = builtins.__import__
+
+    def import_without_whisper(
+        name: str,
+        globals: dict[str, object] | None = None,
+        locals: dict[str, object] | None = None,
+        fromlist: tuple[str, ...] = (),
+        level: int = 0,
+    ) -> object:
+        if name == "faster_whisper":
+            raise ModuleNotFoundError("No module named 'faster_whisper'")
+        return real_import(name, globals, locals, fromlist, level)
+
+    monkeypatch.setattr(builtins, "__import__", import_without_whisper)
+
+    with pytest.raises(RuntimeError, match=r"optional dependencies.*\[voice\]") as exc_info:
+        FasterWhisperTranscriber()
+
+    assert isinstance(exc_info.value.__cause__, ModuleNotFoundError)
+
+
+def test_transcription_failure_is_wrapped_with_actionable_context() -> None:
+    class _FailingModel(_FakeModel):
+        def transcribe(
+            self,
+            audio: NDArray[np.float32],
+            *,
+            language: str,
+            beam_size: int,
+            vad_filter: bool,
+            condition_on_previous_text: bool,
+        ) -> tuple[Iterable[_FakeSegment], object]:
+            del audio, language, beam_size, vad_filter, condition_on_previous_text
+            raise OSError("corrupt model file")
+
+    transcriber = FasterWhisperTranscriber(
+        model_factory=lambda _name, _device, _compute: _FailingModel()
+    )
+
+    with pytest.raises(RuntimeError, match="transcription failed") as exc_info:
+        transcriber.transcribe(np.zeros(16, dtype=np.float32))
+
+    assert isinstance(exc_info.value.__cause__, OSError)
