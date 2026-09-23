@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 from gesture_control.actions import ActionMapper, Intent, IntentType
-from gesture_control.backends.base import InputBackend
+from gesture_control.backends.base import BrowserAction, InputBackend
 
 
 class _FakeBackend(InputBackend):
@@ -15,6 +15,7 @@ class _FakeBackend(InputBackend):
         self.moves: list[tuple[int, int]] = []
         self.click_count = 0
         self.opened_urls: list[str] = []
+        self.browser_actions: list[BrowserAction] = []
         self.clicked_elements: list[str] = []
         self.typed: list[tuple[str, str]] = []
 
@@ -32,6 +33,10 @@ class _FakeBackend(InputBackend):
     def open_url(self, url: str) -> None:
         if not self.safe_pause.is_paused:
             self.opened_urls.append(url)
+
+    def navigate_browser(self, action: BrowserAction) -> None:
+        if not self.safe_pause.is_paused:
+            self.browser_actions.append(action)
 
     def click_element(self, target_id: str) -> None:
         if not self.safe_pause.is_paused:
@@ -103,6 +108,29 @@ def test_safe_pause_blocks_open_url() -> None:
     mapper.dispatch(Intent(IntentType.OPEN_URL, url="https://www.apple.com"))
 
     assert backend.opened_urls == []
+
+
+@pytest.mark.parametrize(
+    ("intent_type", "action"),
+    [
+        (IntentType.NEXT_TAB, BrowserAction.NEXT_TAB),
+        (IntentType.PREVIOUS_TAB, BrowserAction.PREVIOUS_TAB),
+        (IntentType.NEW_TAB, BrowserAction.NEW_TAB),
+        (IntentType.CLOSE_TAB, BrowserAction.CLOSE_TAB),
+        (IntentType.GO_BACK, BrowserAction.GO_BACK),
+        (IntentType.GO_FORWARD, BrowserAction.GO_FORWARD),
+        (IntentType.RELOAD_PAGE, BrowserAction.RELOAD_PAGE),
+    ],
+)
+def test_action_mapper_dispatches_browser_navigation(
+    intent_type: IntentType, action: BrowserAction
+) -> None:
+    """Navigation intents should map onto one typed backend operation."""
+    backend = _FakeBackend()
+
+    ActionMapper(backend).dispatch(Intent(intent_type))
+
+    assert backend.browser_actions == [action]
 
 
 def test_action_mapper_clicks_a_named_page_element() -> None:

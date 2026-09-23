@@ -12,7 +12,7 @@ import pytest
 from gesture_control import app
 from gesture_control.actions import Intent, IntentType
 from gesture_control.app import build_arg_parser, main
-from gesture_control.backends.base import InputBackend
+from gesture_control.backends.base import BrowserAction, InputBackend
 from gesture_control.vision.camera import CameraUnavailableError
 from gesture_control.vision.geometry import HandLandmarkIndex, HandObservation, Landmark
 
@@ -210,6 +210,9 @@ def test_main_command_opens_cursor_in_the_injected_backend(
         def open_url(self, url: str) -> None:
             opened_urls.append(url)
 
+        def navigate_browser(self, action: BrowserAction) -> None:
+            del action
+
         def click_element(self, target_id: str) -> None:
             del target_id
 
@@ -249,6 +252,9 @@ def test_main_command_unknown_phrase_opens_nothing(
 
         def open_url(self, url: str) -> None:
             opened_urls.append(url)
+
+        def navigate_browser(self, action: BrowserAction) -> None:
+            del action
 
         def click_element(self, target_id: str) -> None:
             del target_id

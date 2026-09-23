@@ -3,7 +3,20 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
+from enum import StrEnum
 from threading import Lock
+
+
+class BrowserAction(StrEnum):
+    """Browser-level navigation operations supported by input backends."""
+
+    NEXT_TAB = "next_tab"
+    PREVIOUS_TAB = "previous_tab"
+    NEW_TAB = "new_tab"
+    CLOSE_TAB = "close_tab"
+    GO_BACK = "go_back"
+    GO_FORWARD = "go_forward"
+    RELOAD_PAGE = "reload_page"
 
 
 class SafePause:
@@ -74,6 +87,14 @@ class InputBackend(ABC):
 
         Args:
             url: Absolute URL the platform adapter should open.
+        """
+
+    @abstractmethod
+    def navigate_browser(self, action: BrowserAction) -> None:
+        """Perform one browser navigation action unless input is paused.
+
+        Args:
+            action: Typed browser operation to perform.
         """
 
     @abstractmethod

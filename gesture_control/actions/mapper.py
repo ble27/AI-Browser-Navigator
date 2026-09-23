@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from enum import StrEnum
 
-from gesture_control.backends.base import InputBackend
+from gesture_control.backends.base import BrowserAction, InputBackend
 
 
 class IntentType(StrEnum):
@@ -14,8 +14,26 @@ class IntentType(StrEnum):
     MOVE_CURSOR = "move_cursor"
     CLICK_LEFT = "click_left"
     OPEN_URL = "open_url"
+    NEXT_TAB = "next_tab"
+    PREVIOUS_TAB = "previous_tab"
+    NEW_TAB = "new_tab"
+    CLOSE_TAB = "close_tab"
+    GO_BACK = "go_back"
+    GO_FORWARD = "go_forward"
+    RELOAD_PAGE = "reload_page"
     CLICK_ELEMENT = "click_element"
     TYPE_TEXT = "type_text"
+
+
+_BROWSER_ACTIONS: dict[IntentType, BrowserAction] = {
+    IntentType.NEXT_TAB: BrowserAction.NEXT_TAB,
+    IntentType.PREVIOUS_TAB: BrowserAction.PREVIOUS_TAB,
+    IntentType.NEW_TAB: BrowserAction.NEW_TAB,
+    IntentType.CLOSE_TAB: BrowserAction.CLOSE_TAB,
+    IntentType.GO_BACK: BrowserAction.GO_BACK,
+    IntentType.GO_FORWARD: BrowserAction.GO_FORWARD,
+    IntentType.RELOAD_PAGE: BrowserAction.RELOAD_PAGE,
+}
 
 
 @dataclass(frozen=True, slots=True)
@@ -73,6 +91,8 @@ class ActionMapper:
             if intent.url is None:
                 raise ValueError("OPEN_URL intents require a url.")
             self._backend.open_url(intent.url)
+        elif intent.kind in _BROWSER_ACTIONS:
+            self._backend.navigate_browser(_BROWSER_ACTIONS[intent.kind])
         elif intent.kind is IntentType.CLICK_ELEMENT:
             if not intent.target_id:
                 raise ValueError("CLICK_ELEMENT intents require a target_id.")

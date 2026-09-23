@@ -13,6 +13,6 @@ Every adapter MUST respect the global safe-pause state before injecting any
 input -- see the safety-critical invariant in ``AGENTS.md``.
 """
 
-from gesture_control.backends.base import InputBackend, SafePause
+from gesture_control.backends.base import BrowserAction, InputBackend, SafePause
 
-__all__ = ["InputBackend", "SafePause"]
+__all__ = ["BrowserAction", "InputBackend", "SafePause"]
