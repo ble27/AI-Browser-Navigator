@@ -1,4 +1,4 @@
-"""Tests for deterministic browser navigation voice-style commands."""
+"""Contract tests for deterministic browser-navigation voice commands."""
 
 from __future__ import annotations
 
@@ -29,15 +29,53 @@ def test_navigation_phrase_resolves_to_intent(phrase: str, intent_type: IntentTy
     assert parse_browser_navigation_command(phrase) == Intent(intent_type)
 
 
-def test_navigation_matching_ignores_case_and_collapses_whitespace() -> None:
-    """Transcript formatting should not change an exact phrase match."""
-    assert parse_browser_navigation_command("  GO   Forward ") == Intent(IntentType.GO_FORWARD)
+@pytest.mark.parametrize(
+    ("transcript", "kind"),
+    [
+        ("  NeXt\t TAB  ", IntentType.NEXT_TAB),
+        ("\nPREVIOUS   tab\n", IntentType.PREVIOUS_TAB),
+        ("  Go \t FoRwArD ", IntentType.GO_FORWARD),
+        (" ReFrEsH ", IntentType.RELOAD_PAGE),
+    ],
+)
+def test_parse_browser_navigation_casefolds_and_collapses_whitespace(
+    transcript: str,
+    kind: IntentType,
+) -> None:
+    """Case and runs of whitespace should not affect an exact command."""
+    assert parse_browser_navigation_command(transcript) == Intent(kind)
 
 
-@pytest.mark.parametrize("phrase", ["next tab now", "please reload", "tab"])
-def test_navigation_parser_rejects_extra_or_unknown_words(phrase: str) -> None:
-    """The deterministic grammar must reject words outside fixed phrases."""
-    assert parse_browser_navigation_command(phrase) is None
+@pytest.mark.parametrize(
+    "transcript",
+    [
+        "",
+        "next",
+        "tab",
+        "switch",
+        "previous",
+        "new",
+        "close",
+        "go",
+        "reload page",
+        "next tab please",
+        "please next tab",
+        "switch to next tab",
+        "previous browser tab",
+        "new tabs",
+        "close the tab",
+        "go back now",
+        "back page",
+        "go forwards",
+        "refresh chrome",
+        "unknown words",
+    ],
+)
+def test_parse_browser_navigation_rejects_extra_or_unknown_words(
+    transcript: str,
+) -> None:
+    """The fixed grammar must not accept partial, embellished, or unknown text."""
+    assert parse_browser_navigation_command(transcript) is None
 
 
 def test_combined_parser_keeps_open_url_commands() -> None:
