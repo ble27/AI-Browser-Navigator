@@ -53,6 +53,25 @@ class PageElement:
 
 
 @dataclass(frozen=True, slots=True)
+class PageSeoMeta:
+    """SEO and Open Graph signals captured from the active page.
+
+    Attributes:
+        description: Meta description or ``og:description``.
+        site_name: ``og:site_name`` or application-name.
+        og_title: Open Graph title when present.
+        keywords: Meta keywords split on commas (capped).
+        canonical_url: Absolute or relative canonical link href.
+    """
+
+    description: str = ""
+    site_name: str = ""
+    og_title: str = ""
+    keywords: tuple[str, ...] = ()
+    canonical_url: str = ""
+
+
+@dataclass(frozen=True, slots=True)
 class PageSnapshot:
     """A point-in-time index of the active HTTPS page.
 
@@ -60,11 +79,13 @@ class PageSnapshot:
         url: Active page URL.
         title: Active page title.
         elements: Interactive elements in document order.
+        seo: Optional SEO / Open Graph metadata from the document head.
     """
 
     url: str
     title: str
     elements: tuple[PageElement, ...]
+    seo: PageSeoMeta = PageSeoMeta()
 
 
 def default_socket_path() -> Path:
@@ -373,12 +394,13 @@ def _close_streams(
 
 def _parse_snapshot(result: dict[str, object]) -> PageSnapshot:
     """Validate a snapshot result from the extension."""
-    if set(result) != {"url", "title", "elements"}:
+    allowed_keys = {"url", "title", "elements", "seo"}
+    if not {"url", "title", "elements"}.issubset(result) or set(result) - allowed_keys:
         raise BridgeError("Chrome returned an invalid snapshot")
     url = result["url"]
     title = result["title"]
     raw_elements = result["elements"]
-    if not isinstance(url, str) or not url.startswith("https://") or not isinstance(title, str):
+    if not isinstance(url, str) or not _is_allowed_snapshot_url(url) or not isinstance(title, str):
         raise BridgeError("Chrome returned invalid page metadata")
     if not isinstance(raw_elements, list):
         raise BridgeError("Chrome returned invalid page elements")
@@ -399,4 +421,49 @@ def _parse_snapshot(result: dict[str, object]) -> PageSnapshot:
             raise BridgeError("Chrome returned an invalid page element")
         assert isinstance(role, str)
         elements.append(PageElement(element_id=element_id, role=role, name=name))
-    return PageSnapshot(url=url, title=title, elements=tuple(elements))
+    seo = _parse_seo_meta(result.get("seo"))
+    return PageSnapshot(url=url, title=title, elements=tuple(elements), seo=seo)
+
+
+def _is_allowed_snapshot_url(url: str) -> bool:
+    """Return whether a snapshot URL is an allowed live or local fixture origin."""
+    if url.startswith("https://"):
+        return True
+    return url.startswith("http://127.0.0.1") or url.startswith("http://localhost")
+
+
+def _parse_seo_meta(raw: object) -> PageSeoMeta:
+    """Validate optional SEO metadata from a snapshot payload."""
+    if raw is None:
+        return PageSeoMeta()
+    if not isinstance(raw, dict):
+        raise BridgeError("Chrome returned invalid SEO metadata")
+    allowed = {"description", "site_name", "og_title", "keywords", "canonical_url"}
+    if set(raw) - allowed:
+        raise BridgeError("Chrome returned invalid SEO metadata")
+
+    def _string(field: str) -> str:
+        value = raw.get(field, "")
+        if value is None:
+            return ""
+        if not isinstance(value, str) or len(value) > 2_000:
+            raise BridgeError("Chrome returned invalid SEO metadata")
+        return value
+
+    keywords_raw = raw.get("keywords", [])
+    if keywords_raw is None:
+        keywords_raw = []
+    if not isinstance(keywords_raw, list):
+        raise BridgeError("Chrome returned invalid SEO metadata")
+    keywords: list[str] = []
+    for item in keywords_raw[:32]:
+        if not isinstance(item, str) or not item or len(item) > 200:
+            raise BridgeError("Chrome returned invalid SEO metadata")
+        keywords.append(item)
+    return PageSeoMeta(
+        description=_string("description"),
+        site_name=_string("site_name"),
+        og_title=_string("og_title"),
+        keywords=tuple(keywords),
+        canonical_url=_string("canonical_url"),
+    )

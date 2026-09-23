@@ -143,3 +143,7 @@ continue to use HTTPS.
   reveals a combobox; ``click search`` opens it, then ``type … into search``
   or ``search for …`` can fill it (page-first search opens the button when
   needed).
+- Snapshots include SEO / Open Graph head tags (``description``, ``og:title``,
+  ``og:site_name``, ``keywords``, canonical URL). Element names also consider
+  ``data-label`` / ``data-seo`` / ``itemprop`` and nested image ``alt`` text.
+  Use ``--dump-page`` to inspect them.

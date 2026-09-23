@@ -11,9 +11,17 @@ from gesture_control.actions import Intent, IntentType
 _SITE_ALIASES: dict[str, str] = {
     "amazon": "https://www.amazon.com",
     "apple": "https://www.apple.com",
+    "bing": "https://www.bing.com",
     "cursor": "https://cursor.com",
+    "facebook": "https://www.facebook.com",
     "github": "https://github.com",
     "google": "https://www.google.com",
+    "linkedin": "https://www.linkedin.com",
+    "netflix": "https://www.netflix.com",
+    "reddit": "https://www.reddit.com",
+    "twitter": "https://x.com",
+    "wikipedia": "https://www.wikipedia.org",
+    "x": "https://x.com",
     "youtube": "https://www.youtube.com",
 }
 

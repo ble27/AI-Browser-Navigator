@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>SEO Bridge Fixture</title>
+    <meta name="description" content="Demo page for SEO-assisted voice browsing.">
+    <meta name="keywords" content="buy now, mac mini, checkout">
+    <meta property="og:title" content="SEO Bridge Fixture">
+    <meta property="og:site_name" content="AI Gestures Demo">
+    <meta property="og:description" content="Demo page for SEO-assisted voice browsing.">
+    <link rel="canonical" href="http://127.0.0.1:8765/seo_fixture.html">
+    <style>
+      body { font: 16px system-ui; margin: 2rem auto; max-width: 40rem; }
+      a, button { display: inline-block; margin: 0.5rem 0.5rem 0.5rem 0; }
+    </style>
+  </head>
+  <body>
+    <h1>SEO naming fixture</h1>
+    <p>Controls named via SEO-ish attributes rather than visible text alone.</p>
+    <a href="#buy" data-seo="Buy Mac mini"><img src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7" alt="Buy Mac mini" width="24" height="24"></a>
+    <button type="button" itemprop="checkout">Go</button>
+    <button type="button" data-label="Add to Bag">Add</button>
+    <input type="text" data-name="Promo code" placeholder="">
+    <div id="status" aria-live="polite">Ready.</div>
+    <script>
+      document.querySelector('[data-label="Add to Bag"]').addEventListener("click", () => {
+        document.getElementById("status").textContent = "Added to bag";
+      });
+    </script>
+  </body>
+</html>

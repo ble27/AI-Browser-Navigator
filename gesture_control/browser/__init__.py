@@ -6,6 +6,7 @@ from gesture_control.browser.bridge import (
     BridgeTimeoutError,
     ChromePageBridge,
     PageElement,
+    PageSeoMeta,
     PageSnapshot,
 )
 
@@ -15,5 +16,6 @@ __all__ = [
     "BridgeTimeoutError",
     "ChromePageBridge",
     "PageElement",
+    "PageSeoMeta",
     "PageSnapshot",
 ]

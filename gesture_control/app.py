@@ -340,6 +340,16 @@ def run_dump_page() -> int:
         return 1
     print(f"URL: {snapshot.url}")
     print(f"Title: {snapshot.title}")
+    if snapshot.seo.site_name:
+        print(f"Site: {snapshot.seo.site_name}")
+    if snapshot.seo.og_title:
+        print(f"OG title: {snapshot.seo.og_title}")
+    if snapshot.seo.description:
+        print(f"Description: {snapshot.seo.description}")
+    if snapshot.seo.keywords:
+        print(f"Keywords: {', '.join(snapshot.seo.keywords)}")
+    if snapshot.seo.canonical_url:
+        print(f"Canonical: {snapshot.seo.canonical_url}")
     if not snapshot.elements:
         print("No indexed interactive controls on this page.")
         return 0

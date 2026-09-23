@@ -67,10 +67,11 @@ def test_transcriber_uses_short_english_command_settings() -> None:
             "hotwords": (
                 "next tab switch tab previous tab current tab new tab close tab "
                 "browser tab go back go forward reload refresh reopen closed tab "
-                "open go to visit amazon google youtube github cursor apple search "
-                "for look up lookup find online scroll page up down top bottom small "
-                "little large click press tap type enter fill put focus select "
-                "answer submit response"
+                "open go to visit amazon google youtube github cursor apple reddit "
+                "wikipedia netflix twitter search for look up lookup find online "
+                "scroll page up down top bottom small little large click press tap "
+                "type enter fill put write focus select highlight hit pick push "
+                "mouse left answer submit response"
             ),
         }
     ]

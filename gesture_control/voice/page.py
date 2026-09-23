@@ -13,11 +13,25 @@ from gesture_control.actions import Intent, IntentType
 
 _CLICKABLE_ROLES = frozenset({"button", "link", "checkbox"})
 _TYPEABLE_ROLES = frozenset({"textbox"})
-_CLICK_VERBS = frozenset({"click", "press", "tap", "choose", "activate"})
-_FOCUS_VERBS = frozenset({"focus", "select"})
+# Everyday mouse-replacement verbs humans say instead of "click".
+_CLICK_VERBS = frozenset(
+    {
+        "click",
+        "press",
+        "tap",
+        "choose",
+        "activate",
+        "hit",
+        "pick",
+        "push",
+        "open",
+    }
+)
+_FOCUS_VERBS = frozenset({"focus", "select", "highlight"})
 _FIELD_SUFFIXES = frozenset({"box", "field", "textbox", "button", "link"})
 _SUBMIT_NAME_TOKENS = frozenset({"submit", "submit answer", "submit answers", "check answer"})
 _ANSWER_FIELD_TOKENS = frozenset({"answer", "answers", "response", "responses"})
+_CLICK_PREFIX_SKIP = frozenset({"on", "the", "a", "an"})
 _ORDINALS = {
     "first": 1,
     "1st": 1,
@@ -104,6 +118,9 @@ def resolve_page_command(transcript: str, elements: tuple[PageElement, ...]) -> 
     if homework is not None:
         return homework
 
+    # Multi-word mouse phrases: "mouse click on …", "left click …".
+    if folded[:2] == ["mouse", "click"] or folded[:2] == ["left", "click"]:
+        return _resolve_click(tokens[2:], elements)
     if verb in _CLICK_VERBS:
         return _resolve_click(tokens[1:], elements)
     if verb in _FOCUS_VERBS:
@@ -112,7 +129,7 @@ def resolve_page_command(transcript: str, elements: tuple[PageElement, ...]) -> 
         return _resolve_type(tokens[1:], elements)
     if verb == "enter":
         return _resolve_enter(tokens[1:], elements)
-    if verb in {"fill", "put"}:
+    if verb in {"fill", "put", "write"}:
         return _resolve_fill(tokens[1:], elements)
     if verb in {"search", "lookup"} or (verb == "look" and len(tokens) > 1):
         return _resolve_search(tokens, elements)
@@ -227,7 +244,7 @@ def _resolve_click(rest: list[str], elements: tuple[PageElement, ...]) -> Intent
         A ``CLICK_ELEMENT`` intent for a unique button/link match, else
         ``None``.
     """
-    if rest and rest[0].casefold() == "on":
+    while rest and rest[0].casefold().strip(".,!?") in _CLICK_PREFIX_SKIP:
         rest = rest[1:]
     if not rest:
         return None
@@ -430,6 +447,23 @@ def _normalize_name(raw: str) -> str:
     return " ".join(raw.split())
 
 
+def _seo_attr_name(attr_map: dict[str, str]) -> str:
+    """Return a speakable name from common SEO / analytics attributes."""
+    for key in ("data-label", "data-name", "data-seo", "data-analytics-name", "itemprop"):
+        value = attr_map.get(key)
+        if not value:
+            continue
+        humanized = value.replace("_", " ").replace("-", " ")
+        # itemprop values are often camelCase product names.
+        spaced = "".join(
+            f" {char}" if char.isupper() and index else char for index, char in enumerate(humanized)
+        )
+        name = _normalize_name(spaced)
+        if name:
+            return name
+    return ""
+
+
 class _PageIndexParser(HTMLParser):
     """HTMLParser that collects button, link, and textbox page elements."""
 
@@ -470,6 +504,7 @@ class _PageIndexParser(HTMLParser):
                 name = (
                     labeled
                     or _normalize_name(attr_map.get("value", ""))
+                    or _seo_attr_name(attr_map)
                     or _normalize_name(attr_map.get("name", ""))
                 )
                 if name:
@@ -480,6 +515,7 @@ class _PageIndexParser(HTMLParser):
             if input_type == "checkbox":
                 name = (
                     labeled
+                    or _seo_attr_name(attr_map)
                     or _normalize_name(attr_map.get("name", ""))
                     or _normalize_name(attr_map.get("id", ""))
                 )
@@ -490,6 +526,7 @@ class _PageIndexParser(HTMLParser):
             name = (
                 labeled
                 or _normalize_name(attr_map.get("placeholder", ""))
+                or _seo_attr_name(attr_map)
                 or _normalize_name(attr_map.get("name", "").replace("_", " "))
                 or _normalize_name(attr_map.get("id", "").replace("_", " ").replace("-", " "))
             )
@@ -501,6 +538,7 @@ class _PageIndexParser(HTMLParser):
             name = (
                 labeled
                 or _normalize_name(attr_map.get("placeholder", ""))
+                or _seo_attr_name(attr_map)
                 or _normalize_name(attr_map.get("name", "").replace("_", " "))
                 or _normalize_name(attr_map.get("id", "").replace("_", " ").replace("-", " "))
             )
@@ -510,11 +548,11 @@ class _PageIndexParser(HTMLParser):
             return
 
         if tag == "button":
-            self._stack.append(("button", labeled, []))
+            self._stack.append(("button", labeled or _seo_attr_name(attr_map) or None, []))
             return
 
         if tag == "a":
-            self._stack.append(("link", labeled, []))
+            self._stack.append(("link", labeled or _seo_attr_name(attr_map) or None, []))
             return
 
     def handle_endtag(self, tag: str) -> None:

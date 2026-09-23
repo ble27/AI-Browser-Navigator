@@ -54,6 +54,17 @@
     return "";
   }
 
+  function nestedImageAlt(element) {
+    if (!(element instanceof HTMLElement)) {
+      return "";
+    }
+    const image = element.querySelector("img[alt]");
+    if (!image) {
+      return "";
+    }
+    return normalizedText(image.getAttribute("alt"));
+  }
+
   function accessibleName(element) {
     const aria = normalizedText(element.getAttribute("aria-label"));
     if (aria) {
@@ -62,6 +73,15 @@
     const label = associatedLabel(element);
     if (label) {
       return label;
+    }
+    const dataLabel = normalizedText(
+      element.getAttribute("data-label") ||
+        element.getAttribute("data-name") ||
+        element.getAttribute("data-seo") ||
+        element.getAttribute("data-analytics-name")
+    );
+    if (dataLabel) {
+      return dataLabel;
     }
     const placeholder = normalizedText(element.getAttribute("placeholder"));
     if (placeholder) {
@@ -77,6 +97,10 @@
         return valueName;
       }
     }
+    const imageAlt = nestedImageAlt(element);
+    if (imageAlt) {
+      return imageAlt;
+    }
     const inner = normalizedText(element.innerText);
     if (inner) {
       return inner;
@@ -84,6 +108,10 @@
     const title = normalizedText(element.getAttribute("title"));
     if (title) {
       return title;
+    }
+    const itemprop = humanizeIdentifier(element.getAttribute("itemprop"));
+    if (itemprop) {
+      return itemprop;
     }
     const nameAttr = humanizeIdentifier(element.getAttribute("name"));
     if (nameAttr) {
@@ -94,6 +122,41 @@
       return idAttr;
     }
     return "";
+  }
+
+  function metaContent(selector) {
+    const node = document.querySelector(selector);
+    if (!node) {
+      return "";
+    }
+    return normalizedText(node.getAttribute("content"));
+  }
+
+  function collectSeoMeta() {
+    // Capture common SEO / Open Graph tags so voice matching and --dump-page
+    // can use the same page signals search engines and social previews use.
+    const keywordsRaw = metaContent('meta[name="keywords" i]');
+    const keywords = keywordsRaw
+      ? keywordsRaw
+          .split(",")
+          .map((part) => normalizedText(part))
+          .filter(Boolean)
+          .slice(0, 32)
+      : [];
+    const canonical =
+      normalizedText(document.querySelector('link[rel="canonical"]')?.getAttribute("href")) ||
+      "";
+    return {
+      description:
+        metaContent('meta[name="description" i]') ||
+        metaContent('meta[property="og:description"]'),
+      site_name:
+        metaContent('meta[property="og:site_name"]') ||
+        metaContent('meta[name="application-name" i]'),
+      og_title: metaContent('meta[property="og:title"]'),
+      keywords,
+      canonical_url: canonical
+    };
   }
 
   function roleFor(element) {
@@ -226,7 +289,12 @@
         }
       }
     }
-    return { url: window.location.href, title: document.title, elements };
+    return {
+      url: window.location.href,
+      title: document.title,
+      seo: collectSeoMeta(),
+      elements
+    };
   }
 
   function resolveTarget(targetId) {

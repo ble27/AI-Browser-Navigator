@@ -56,6 +56,7 @@ def test_disconnected_search_falls_back_but_click_reports_bridge_error() -> None
     resolver = LivePageCommandResolver(bridge)  # type: ignore[arg-type]
 
     assert resolver.resolve("search for mechanical keyboard") is None
+    assert resolver.resolve("open amazon") is None
     with pytest.raises(PageCommandUnavailableError, match="extension unavailable"):
         resolver.resolve("click add to cart")
 

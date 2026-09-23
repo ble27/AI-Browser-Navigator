@@ -115,7 +115,8 @@ without microphone capture. Open commands launch Google Chrome specifically
 (not the default browser); navigation commands control the focused app, so
 Chrome must be focused.
 
-- `open` / `go to` / `visit` Amazon, Google, YouTube, GitHub, Cursor, or Apple
+- `open` / `go to` / `visit` Amazon, Google, YouTube, GitHub, Cursor, Apple,
+  Reddit, Wikipedia, Netflix, Twitter/X, Bing, Facebook, or LinkedIn
 - `open example.com` / `visit docs.example.com`: validated public domains,
   upgraded to HTTPS
 - `open https://example.com/docs`: that exact validated HTTPS URL
@@ -141,7 +142,8 @@ one-shot `--command` process does not start the global pause hotkey listener.
 Wake word activation and TTS are not part of this slice. An independently
 installed Chrome page bridge adds active-page commands:
 
-- `click Add to Cart` / `press Log in`
+- `click Add to Cart` / `press Log in` / `hit submit` / `pick Continue` /
+  `push the Buy button` / `mouse click on search`
 - `focus search` / `click the search box`
 - `type hello into email` / `fill email with hello`
 - `search for mechanical keyboard` uses the page's unique named search field

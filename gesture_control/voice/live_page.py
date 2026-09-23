@@ -19,9 +19,16 @@ _PAGE_COMMAND_PREFIXES = frozenset(
         "enter",
         "fill",
         "focus",
+        "highlight",
+        "hit",
+        "left",
         "look",
         "lookup",
+        "mouse",
+        "open",
+        "pick",
         "press",
+        "push",
         "put",
         "response",
         "search",
@@ -30,9 +37,13 @@ _PAGE_COMMAND_PREFIXES = frozenset(
         "tap",
         "the",
         "type",
+        "write",
     }
 )
 _SEARCH_PREFIXES = frozenset({"look", "lookup", "search"})
+# These prefixes are also used by browser-wide grammars; a missing bridge must
+# fall through instead of hard-failing (e.g. ``open amazon``).
+_BRIDGE_OPTIONAL_PREFIXES = _SEARCH_PREFIXES | frozenset({"open"})
 _SNAPSHOT_CACHE_TTL_S = 2.0
 
 
@@ -92,7 +103,7 @@ class LivePageCommandResolver:
         try:
             snapshot = self._take_snapshot()
         except BridgeError as exc:
-            if first_word in _SEARCH_PREFIXES:
+            if first_word in _BRIDGE_OPTIONAL_PREFIXES:
                 return None
             raise PageCommandUnavailableError(str(exc)) from exc
         elements = tuple(

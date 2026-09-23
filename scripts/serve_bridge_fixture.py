@@ -38,6 +38,7 @@ def main() -> int:
         print(f"Serving {extension_dir}")
         print(f"WebAssign-style fixture: {base}/webassign_fixture.html")
         print(f"Apple-style fixture:     {base}/apple_fixture.html")
+        print(f"SEO naming fixture:      {base}/seo_fixture.html")
         print(f"Generic fixture:         {base}/test_fixture.html")
         print("Press Ctrl+C to stop.")
         try:
