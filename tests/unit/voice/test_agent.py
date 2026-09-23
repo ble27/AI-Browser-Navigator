@@ -113,9 +113,7 @@ def test_voice_loop_handles_multiple_utterances_before_interrupt() -> None:
         def __init__(self) -> None:
             self._transcripts = iter(("new tab", "reload"))
 
-        def transcribe(
-            self, audio: NDArray[np.float32], sample_rate: int = 16_000
-        ) -> str:
+        def transcribe(self, audio: NDArray[np.float32], sample_rate: int = 16_000) -> str:
             del audio, sample_rate
             return next(self._transcripts)
 

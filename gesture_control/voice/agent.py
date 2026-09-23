@@ -42,7 +42,9 @@ class VoiceAgent:
         """
         audio = self._recorder.record_utterance()
         transcript = self._transcriber.transcribe(audio, VOICE_SAMPLE_RATE)
-        self._output(f"Heard: {transcript or '(empty)'}")
+        if not transcript.strip():
+            return False
+        self._output(f"Heard: {transcript}")
         intent = parse_command(transcript)
         if intent is None:
             self._output("Unrecognized command.")

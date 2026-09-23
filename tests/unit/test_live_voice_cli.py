@@ -55,14 +55,14 @@ def test_voice_cli_skips_camera_and_passes_selected_model(
     """The voice mode should invoke only the voice runner with its selected model."""
     received_models: list[str] = []
 
-    def fake_run_voice_agent(model_name: str = "tiny.en") -> int:
+    def fake_run_voice_session(model_name: str = "tiny.en") -> int:
         received_models.append(model_name)
         return 0
 
     def fail_if_camera_starts(*args: object, **kwargs: object) -> int:
         raise AssertionError("run_debug_overlay must not start for --voice")
 
-    monkeypatch.setattr(app, "run_voice_agent", fake_run_voice_agent)
+    monkeypatch.setattr(app, "run_voice_session", fake_run_voice_session)
     monkeypatch.setattr(app, "run_debug_overlay", fail_if_camera_starts)
     monkeypatch.setattr(app.sys, "platform", "darwin")
     argv = ["--voice"]
@@ -101,12 +101,12 @@ def test_safe_pause_hotkey_spans_session_and_interrupt_exits_cleanly(
     class _Agent:
         """Interrupt from inside the session as a user pressing Ctrl-C would."""
 
-        def __init__(self, **kwargs: Any) -> None:
-            assert kwargs["action_mapper"] is not None
-            assert kwargs["recorder"] is not None
-            assert kwargs["transcriber"] is not None
+        def __init__(self, recorder: object, transcriber: object, action_mapper: object) -> None:
+            assert recorder is not None
+            assert transcriber is not None
+            assert action_mapper is not None
 
-        def run(self) -> None:
+        def run_forever(self) -> None:
             timeline.append("agent-run")
             raise KeyboardInterrupt
 
@@ -119,12 +119,14 @@ def test_safe_pause_hotkey_spans_session_and_interrupt_exits_cleanly(
 
     monkeypatch.setattr(app, "MacOSInputBackend", _Backend)
     monkeypatch.setattr(app, "SafePauseHotkey", _Hotkey)
-    monkeypatch.setattr(app, "SpeechRecorder", lambda: object())
-    monkeypatch.setattr(app, "FasterWhisperTranscriber", _Transcriber)
-    monkeypatch.setattr(app, "VoiceAgent", _Agent)
     monkeypatch.setattr(app, "ActionMapper", lambda backend: object())
+    monkeypatch.setattr("gesture_control.voice.audio.MicrophoneUtteranceRecorder", object)
+    monkeypatch.setattr(
+        "gesture_control.voice.transcription.FasterWhisperTranscriber", _Transcriber
+    )
+    monkeypatch.setattr("gesture_control.voice.agent.VoiceAgent", _Agent)
 
-    assert app.run_voice_agent(model_name="small.en") == 0
+    assert app.run_voice_session(model_name="small.en") == 0
     assert timeline == [
         "model:small.en",
         "hotkey-enter",
