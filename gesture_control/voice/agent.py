@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import threading
 from collections.abc import Callable
 
 from gesture_control.actions import ActionMapper, Intent
@@ -21,6 +22,7 @@ class VoiceAgent:
         action_mapper: ActionMapper,
         output: Callable[[str], None] = print,
         page_resolver: Callable[[str], Intent | None] | None = None,
+        page_prefetch: Callable[[], None] | None = None,
     ) -> None:
         """Wire the hardware-independent voice command loop.
 
@@ -30,12 +32,15 @@ class VoiceAgent:
             action_mapper: Shared intent-to-backend dispatcher.
             output: Feedback sink, injectable for tests.
             page_resolver: Optional active-page intent resolver.
+            page_prefetch: Optional hook started in parallel with
+                transcription so a page snapshot can overlap STT.
         """
         self._recorder = recorder
         self._transcriber = transcriber
         self._action_mapper = action_mapper
         self._output = output
         self._page_resolver = page_resolver
+        self._page_prefetch = page_prefetch
 
     def run_once(self) -> bool:
         """Process one utterance.
@@ -45,7 +50,17 @@ class VoiceAgent:
             ``False``. Empty and unknown transcripts never reach the mapper.
         """
         audio = self._recorder.record_utterance()
+        prefetch_thread: threading.Thread | None = None
+        if self._page_prefetch is not None:
+            prefetch_thread = threading.Thread(
+                target=self._page_prefetch,
+                name="page-snapshot-prefetch",
+                daemon=True,
+            )
+            prefetch_thread.start()
         transcript = self._transcriber.transcribe(audio, VOICE_SAMPLE_RATE)
+        if prefetch_thread is not None:
+            prefetch_thread.join(timeout=2.0)
         if not transcript.strip():
             return False
         self._output(f"Heard: {transcript}")

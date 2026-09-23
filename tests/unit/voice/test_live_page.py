@@ -58,3 +58,21 @@ def test_disconnected_search_falls_back_but_click_reports_bridge_error() -> None
     assert resolver.resolve("search for mechanical keyboard") is None
     with pytest.raises(PageCommandUnavailableError, match="extension unavailable"):
         resolver.resolve("click add to cart")
+
+
+def test_warm_snapshot_is_reused_once_by_resolve() -> None:
+    bridge = _Bridge((PageElement("btn", "button", "Submit Answer"),))
+    resolver = LivePageCommandResolver(bridge)  # type: ignore[arg-type]
+
+    resolver.warm()
+    assert bridge.snapshot_calls == 1
+    assert resolver.resolve("submit answer") == Intent(
+        IntentType.CLICK_ELEMENT,
+        target_id="btn",
+    )
+    assert bridge.snapshot_calls == 1
+    assert resolver.resolve("submit answer") == Intent(
+        IntentType.CLICK_ELEMENT,
+        target_id="btn",
+    )
+    assert bridge.snapshot_calls == 2

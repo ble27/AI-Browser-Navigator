@@ -13,7 +13,8 @@ _COMMAND_HOTWORDS = (
     "next tab switch tab previous tab current tab new tab close tab browser tab "
     "go back go forward reload refresh reopen closed tab open go to visit amazon "
     "google youtube github cursor apple search for look up lookup find online "
-    "scroll page up down top bottom small little large"
+    "scroll page up down top bottom small little large "
+    "click press tap type enter fill put focus select answer submit response"
 )
 
 
@@ -112,7 +113,9 @@ class FasterWhisperTranscriber:
                 audio,
                 language="en",
                 beam_size=1,
-                vad_filter=True,
+                # Utterance segmentation already trims silence; skipping Whisper's
+                # VAD avoids a second pass on short commands.
+                vad_filter=False,
                 condition_on_previous_text=False,
                 hotwords=_COMMAND_HOTWORDS,
             )

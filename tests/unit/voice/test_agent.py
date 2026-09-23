@@ -193,3 +193,30 @@ def test_voice_agent_reports_disconnected_page_bridge() -> None:
     assert agent.run_once() is False
     assert backend.clicked_elements == []
     assert output[-1] == "Page command unavailable: install the extension"
+
+
+def test_voice_agent_runs_page_prefetch_during_transcription() -> None:
+    events: list[str] = []
+
+    class _PrefetchTranscriber:
+        def transcribe(self, audio: NDArray[np.float32], sample_rate: int = 16_000) -> str:
+            del audio, sample_rate
+            events.append("transcribe")
+            return "next tab"
+
+    def prefetch() -> None:
+        events.append("prefetch")
+
+    backend = _Backend()
+    agent = VoiceAgent(
+        _Recorder(),
+        _PrefetchTranscriber(),
+        ActionMapper(backend),
+        lambda _message: None,
+        page_prefetch=prefetch,
+    )
+
+    assert agent.run_once() is True
+    assert "prefetch" in events
+    assert "transcribe" in events
+    assert backend.browser_actions == [BrowserAction.NEXT_TAB]

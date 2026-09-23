@@ -108,11 +108,13 @@ def test_safe_pause_hotkey_spans_session_and_interrupt_exits_cleanly(
             action_mapper: object,
             *,
             page_resolver: object,
+            page_prefetch: object = None,
         ) -> None:
             assert recorder is not None
             assert transcriber is not None
             assert action_mapper is not None
             assert page_resolver is not None
+            assert page_prefetch is not None
 
         def run_forever(self) -> None:
             timeline.append("agent-run")
@@ -139,6 +141,9 @@ def test_safe_pause_hotkey_spans_session_and_interrupt_exits_cleanly(
 
         def resolve(self, transcript: str) -> None:
             del transcript
+
+        def warm(self) -> None:
+            return None
 
     monkeypatch.setattr(app, "MacOSInputBackend", lambda page_bridge: _Backend())
     monkeypatch.setattr(app, "SafePauseHotkey", _Hotkey)

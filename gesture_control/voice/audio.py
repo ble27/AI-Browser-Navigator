@@ -25,8 +25,8 @@ class UtteranceRecorder(Protocol):
 class RecordingConfig:
     """Speech-boundary and microphone capture settings.
 
-    The defaults use 30 ms blocks, a short 300 ms pre-roll so initial
-    consonants are retained, 600 ms trailing silence for command completion,
+    The defaults use 30 ms blocks, a short 200 ms pre-roll so initial
+    consonants are retained, 350 ms trailing silence for command completion,
     and an eight-second safety cap appropriate for short deterministic
     commands.
 
@@ -43,9 +43,9 @@ class RecordingConfig:
     sample_rate: int = VOICE_SAMPLE_RATE
     block_duration_s: float = 0.03
     speech_threshold: float = 0.015
-    min_speech_s: float = 0.12
-    pre_roll_s: float = 0.30
-    trailing_silence_s: float = 0.60
+    min_speech_s: float = 0.10
+    pre_roll_s: float = 0.20
+    trailing_silence_s: float = 0.35
     max_utterance_s: float = 8.0
 
     def __post_init__(self) -> None:

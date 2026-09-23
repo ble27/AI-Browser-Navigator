@@ -112,6 +112,15 @@ def build_arg_parser() -> argparse.ArgumentParser:
             "the default microphone. macOS only; press Ctrl+C to stop."
         ),
     )
+    modes.add_argument(
+        "--dump-page",
+        action="store_true",
+        help=(
+            "Print speakable control names from the active Chrome tab via the "
+            "page bridge, then exit. macOS only; useful for WebAssign/apple.com "
+            "phrase discovery."
+        ),
+    )
     parser.add_argument(
         "--voice-model",
         default="tiny.en",
@@ -284,6 +293,7 @@ def run_voice_session(model_name: str = "tiny.en") -> int:
                 FasterWhisperTranscriber(model_name=model_name),
                 ActionMapper(backend),
                 page_resolver=page_resolver.resolve,
+                page_prefetch=page_resolver.warm,
             )
             with SafePauseHotkey(
                 backend.safe_pause,
@@ -302,6 +312,40 @@ def run_voice_session(model_name: str = "tiny.en") -> int:
     except RuntimeError as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 1
+    return 0
+
+
+def run_dump_page() -> int:
+    """Print the active Chrome tab's indexed controls for phrase discovery.
+
+    Returns:
+        ``0`` when a snapshot was printed, or ``1`` when the bridge is
+        unavailable.
+    """
+    try:
+        from gesture_control.browser.bridge import BridgeError, ChromePageBridge
+    except ImportError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 1
+    try:
+        with ChromePageBridge(timeout=5.0) as bridge:
+            snapshot = bridge.snapshot()
+    except (BridgeError, RuntimeError, OSError) as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        print(
+            "Install/reload the unpacked extension and native host "
+            "(see docs/CHROME_PAGE_BRIDGE.md), focus an HTTPS tab, then retry.",
+            file=sys.stderr,
+        )
+        return 1
+    print(f"URL: {snapshot.url}")
+    print(f"Title: {snapshot.title}")
+    if not snapshot.elements:
+        print("No indexed interactive controls on this page.")
+        return 0
+    print(f"{len(snapshot.elements)} speakable controls:")
+    for element in snapshot.elements:
+        print(f"  [{element.role}] {element.name}")
     return 0
 
 
@@ -328,8 +372,12 @@ def main(argv: list[str] | None = None) -> int:
         parser.error("--command is currently supported on macOS only.")
     if args.voice and sys.platform != "darwin":
         parser.error("--voice is currently supported on macOS only.")
+    if args.dump_page and sys.platform != "darwin":
+        parser.error("--dump-page is currently supported on macOS only.")
     if args.command is not None:
         return run_voice_command(args.command)
+    if args.dump_page:
+        return run_dump_page()
     if args.voice:
         return run_voice_session(args.voice_model)
     if args.debug:

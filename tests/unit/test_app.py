@@ -305,8 +305,9 @@ def test_voice_session_keeps_safe_pause_hotkey_active(
             mapper: object,
             *,
             page_resolver: object,
+            page_prefetch: object = None,
         ) -> None:
-            del recorder, transcriber, mapper, page_resolver
+            del recorder, transcriber, mapper, page_resolver, page_prefetch
 
         def run_forever(self) -> None:
             events.append("agent-run")
@@ -330,6 +331,9 @@ def test_voice_session_keeps_safe_pause_hotkey_active(
 
         def resolve(self, transcript: str) -> None:
             del transcript
+
+        def warm(self) -> None:
+            return None
 
     monkeypatch.setattr(app, "MacOSInputBackend", lambda page_bridge: _Backend())
     monkeypatch.setattr(app, "SafePauseHotkey", _Hotkey)
