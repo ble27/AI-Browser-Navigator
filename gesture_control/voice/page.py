@@ -16,6 +16,30 @@ _TYPEABLE_ROLES = frozenset({"textbox"})
 _CLICK_VERBS = frozenset({"click", "press", "tap", "choose", "activate"})
 _FOCUS_VERBS = frozenset({"focus", "select"})
 _FIELD_SUFFIXES = frozenset({"box", "field", "textbox", "button", "link"})
+_SUBMIT_NAME_TOKENS = frozenset({"submit", "submit answer", "submit answers", "check answer"})
+_ANSWER_FIELD_TOKENS = frozenset({"answer", "answers", "response", "responses"})
+_ORDINALS = {
+    "first": 1,
+    "1st": 1,
+    "second": 2,
+    "2nd": 2,
+    "third": 3,
+    "3rd": 3,
+    "fourth": 4,
+    "4th": 4,
+    "fifth": 5,
+    "5th": 5,
+    "sixth": 6,
+    "6th": 6,
+    "seventh": 7,
+    "7th": 7,
+    "eighth": 8,
+    "8th": 8,
+    "ninth": 9,
+    "9th": 9,
+    "tenth": 10,
+    "10th": 10,
+}
 
 
 @dataclass(frozen=True, slots=True)
@@ -73,7 +97,13 @@ def resolve_page_command(transcript: str, elements: tuple[PageElement, ...]) -> 
         return None
 
     tokens = collapsed.split()
-    verb = tokens[0].casefold().strip(".,!?")
+    folded = [token.casefold().strip(".,!?") for token in tokens]
+    verb = folded[0]
+
+    homework = _resolve_homework(folded, tokens, elements)
+    if homework is not None:
+        return homework
+
     if verb in _CLICK_VERBS:
         return _resolve_click(tokens[1:], elements)
     if verb in _FOCUS_VERBS:
@@ -86,6 +116,103 @@ def resolve_page_command(transcript: str, elements: tuple[PageElement, ...]) -> 
         return _resolve_fill(tokens[1:], elements)
     if verb in {"search", "lookup"} or (verb == "look" and len(tokens) > 1):
         return _resolve_search(tokens, elements)
+    return None
+
+
+def _resolve_homework(
+    folded: list[str],
+    tokens: list[str],
+    elements: tuple[PageElement, ...],
+) -> Intent | None:
+    """Resolve WebAssign-style answer/submit phrases.
+
+    Args:
+        folded: Casefolded speech tokens.
+        tokens: Original tokens (preserves answer text casing).
+        elements: Indexed page elements.
+
+    Returns:
+        A page intent when the homework grammar matches, else ``None``.
+    """
+    if not folded:
+        return None
+
+    if folded[0] == "submit" or folded[:2] == ["check", "answer"]:
+        return _resolve_submit_action(folded, elements)
+
+    # "the answer is 42" / "answer is 42" / "answer with 42"
+    start = 1 if folded[:1] == ["the"] else 0
+    if start < len(folded) and folded[start] in {"answer", "answers", "response"}:
+        rest = folded[start + 1 :]
+        original_rest = tokens[start + 1 :]
+        if rest and rest[0] in {"is", "with", "as"}:
+            text = " ".join(original_rest[1:]).strip()
+            if text:
+                return _answer_text_intent(text, elements, ordinal=None)
+        # Bare "answer 42" types into the unique answer field when possible.
+        if rest:
+            text = " ".join(original_rest).strip()
+            if text:
+                return _answer_text_intent(text, elements, ordinal=None)
+
+    return None
+
+
+def _resolve_submit_action(folded: list[str], elements: tuple[PageElement, ...]) -> Intent | None:
+    """Resolve ``submit`` / ``submit answer`` onto a unique submit control."""
+    spoken = " ".join(folded)
+    if spoken in {"submit", "submit answer", "submit answers", "check answer"}:
+        matches = _submit_buttons(elements)
+        if len(matches) == 1:
+            return Intent(IntentType.CLICK_ELEMENT, target_id=matches[0].element_id)
+        # Fall through to normal click matching for "submit something else".
+    if folded[0] == "submit" and len(folded) > 1:
+        return _resolve_click(list(folded[1:]), elements)
+    return None
+
+
+def _submit_buttons(elements: tuple[PageElement, ...]) -> list[PageElement]:
+    """Return clickable controls whose names look like submit actions."""
+    matches: list[PageElement] = []
+    for element in elements:
+        if element.role not in _CLICKABLE_ROLES:
+            continue
+        name = _normalize_spoken_name(element.name)
+        if name in _SUBMIT_NAME_TOKENS or name.startswith("submit"):
+            matches.append(element)
+    return matches
+
+
+def _answer_text_intent(
+    text: str,
+    elements: tuple[PageElement, ...],
+    *,
+    ordinal: int | None,
+) -> Intent | None:
+    """Type into the unique answer field, or the only textbox on the page."""
+    answer_fields = [
+        element
+        for element in elements
+        if element.role in _TYPEABLE_ROLES and _is_answer_field(element.name)
+    ]
+    if not answer_fields:
+        textboxes = [element for element in elements if element.role in _TYPEABLE_ROLES]
+        if len(textboxes) == 1:
+            answer_fields = textboxes
+        else:
+            return None
+    chosen = _pick_by_ordinal(answer_fields, ordinal)
+    if chosen is None:
+        return None
+    return Intent(IntentType.TYPE_TEXT, target_id=chosen.element_id, text=text)
+
+
+def _pick_by_ordinal(matches: list[PageElement], ordinal: int | None) -> PageElement | None:
+    """Pick one match by 1-based ordinal, or the sole match when unspecified."""
+    if ordinal is None:
+        return matches[0] if len(matches) == 1 else None
+    if 1 <= ordinal <= len(matches):
+        return matches[ordinal - 1]
     return None
 
 
@@ -245,18 +372,40 @@ def _matching_elements(
     elements: tuple[PageElement, ...],
     roles: frozenset[str],
 ) -> list[PageElement]:
-    """Return exact or unique partial accessible-name matches."""
-    normalized = _normalize_spoken_name(spoken_name)
-    if not normalized:
+    """Return exact, numbered, or unique partial accessible-name matches."""
+    base, ordinal = _split_ordinal(spoken_name)
+    if not base:
         return []
     eligible = [element for element in elements if element.role in roles]
-    exact = [element for element in eligible if _normalize_spoken_name(element.name) == normalized]
-    if exact:
-        return exact
-    partial = [
-        element for element in eligible if normalized in _normalize_spoken_name(element.name)
-    ]
-    return partial if len(partial) == 1 else []
+    exact = [element for element in eligible if _normalize_spoken_name(element.name) == base]
+    pool = exact
+    if not pool:
+        partial = [element for element in eligible if base in _normalize_spoken_name(element.name)]
+        pool = partial
+    if ordinal is not None:
+        chosen = _pick_by_ordinal(pool, ordinal)
+        return [chosen] if chosen is not None else []
+    return pool if len(pool) == 1 else []
+
+
+def _is_answer_field(name: str) -> bool:
+    """Return True when an accessible name looks like a homework answer box."""
+    tokens = set(_normalize_spoken_name(name).split())
+    return bool(tokens & _ANSWER_FIELD_TOKENS)
+
+
+def _split_ordinal(spoken_name: str) -> tuple[str, int | None]:
+    """Split ``second answer`` / ``answer 2`` into a base name and ordinal."""
+    tokens = _normalize_spoken_name(spoken_name).split()
+    if not tokens:
+        return "", None
+    if tokens[0] in _ORDINALS:
+        return " ".join(tokens[1:]), _ORDINALS[tokens[0]]
+    if tokens[-1].isdigit():
+        return " ".join(tokens[:-1]), int(tokens[-1])
+    if tokens[-1] in _ORDINALS:
+        return " ".join(tokens[:-1]), _ORDINALS[tokens[-1]]
+    return " ".join(tokens), None
 
 
 def _normalize_spoken_name(raw: str) -> str:
@@ -316,8 +465,46 @@ class _PageIndexParser(HTMLParser):
         labeled = _normalize_name(aria_label) if aria_label is not None else None
 
         if tag == "input":
-            # Void element: emit at the start tag; there is no end-tag text.
-            name = labeled or ""
+            input_type = (attr_map.get("type") or "text").casefold()
+            if input_type in {"button", "submit", "reset", "image"}:
+                name = (
+                    labeled
+                    or _normalize_name(attr_map.get("value", ""))
+                    or _normalize_name(attr_map.get("name", ""))
+                )
+                if name:
+                    self._emit("button", name)
+                return
+            if input_type in {"hidden", "radio", "file"}:
+                return
+            if input_type == "checkbox":
+                name = (
+                    labeled
+                    or _normalize_name(attr_map.get("name", ""))
+                    or _normalize_name(attr_map.get("id", ""))
+                )
+                if name:
+                    self._emit("checkbox", name)
+                return
+            # Void text-like input: emit at the start tag; there is no end-tag text.
+            name = (
+                labeled
+                or _normalize_name(attr_map.get("placeholder", ""))
+                or _normalize_name(attr_map.get("name", "").replace("_", " "))
+                or _normalize_name(attr_map.get("id", "").replace("_", " ").replace("-", " "))
+            )
+            if name:
+                self._emit("textbox", name)
+            return
+
+        if tag == "textarea":
+            name = (
+                labeled
+                or _normalize_name(attr_map.get("placeholder", ""))
+                or _normalize_name(attr_map.get("name", "").replace("_", " "))
+                or _normalize_name(attr_map.get("id", "").replace("_", " ").replace("-", " "))
+            )
+            # Textarea may have body text; name comes from attributes only.
             if name:
                 self._emit("textbox", name)
             return

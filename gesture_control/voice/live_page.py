@@ -9,6 +9,8 @@ from gesture_control.voice.page import PageElement, resolve_page_command
 _PAGE_COMMAND_PREFIXES = frozenset(
     {
         "activate",
+        "answer",
+        "check",
         "choose",
         "click",
         "enter",
@@ -18,9 +20,12 @@ _PAGE_COMMAND_PREFIXES = frozenset(
         "lookup",
         "press",
         "put",
+        "response",
         "search",
         "select",
+        "submit",
         "tap",
+        "the",
         "type",
     }
 )
