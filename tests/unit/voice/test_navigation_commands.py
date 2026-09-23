@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import pytest
-
 from gesture_control.actions import Intent, IntentType
 from gesture_control.voice.commands import parse_command
 from gesture_control.voice.navigation import parse_browser_navigation_command
