@@ -1,0 +1,39 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  quality:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Install full development environment
+        run: ./scripts/setup_env.sh --voice
+
+      - name: Run Python quality gate
+        run: |
+          source .venv/bin/activate
+          ./scripts/check.sh
+
+      - name: Validate Chrome extension assets
+        run: |
+          node --check chrome_extension/content_script.js
+          node --check chrome_extension/service_worker.js
+          python -m json.tool chrome_extension/manifest.json >/dev/null
