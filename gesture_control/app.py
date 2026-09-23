@@ -26,7 +26,7 @@ from gesture_control.vision.camera import Camera, CameraUnavailableError
 from gesture_control.vision.geometry import HandObservation
 from gesture_control.vision.hand_landmarker import HandLandmarkerService
 from gesture_control.vision.overlay import draw_hand_landmarks
-from gesture_control.voice.browser import parse_browser_command
+from gesture_control.voice.commands import parse_command
 
 _DEBUG_WINDOW_TITLE = "gesture-control debug (press 'q' to quit)"
 _QUIT_KEY = ord("q")
@@ -78,9 +78,9 @@ def build_arg_parser() -> argparse.ArgumentParser:
         type=str,
         default=None,
         help=(
-            "Run one offline voice-style phrase that opens an allowlisted site or "
-            'https URL in Google Chrome (examples: "open cursor webpage", '
-            '"open apple website"). macOS only; skips the camera debug overlay.'
+            "Run one deterministic voice-style phrase for Google Chrome, such as "
+            '"open cursor webpage", "next tab", or "reload". macOS only; skips '
+            "the camera debug overlay."
         ),
     )
     parser.add_argument(
@@ -182,19 +182,20 @@ def run_debug_overlay(camera_index: int = 0, control: bool = False) -> int:
 
 
 def run_voice_command(command: str) -> int:
-    """Parse one offline open-site phrase and dispatch it through the backend.
+    """Parse one deterministic Chrome command and dispatch it through the backend.
 
-    Does not open a camera. On success the macOS backend opens the URL in
-    Google Chrome via :meth:`MacOSInputBackend.open_url`.
+    Does not open a camera. On success the macOS backend either opens an https
+    URL in Google Chrome or sends a fixed Chrome navigation shortcut.
 
     Args:
-        command: Voice-style phrase such as ``open cursor webpage``.
+        command: Voice-style phrase such as ``open cursor webpage`` or
+            ``next tab``.
 
     Returns:
         ``0`` when an intent was dispatched, ``1`` when the phrase was not
         recognized (nothing is opened).
     """
-    intent = parse_browser_command(command)
+    intent = parse_command(command)
     if intent is None:
         print(f"error: unrecognized command: {command!r}", file=sys.stderr)
         return 1

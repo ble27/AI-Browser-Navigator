@@ -39,6 +39,7 @@ Options:
 python -m gesture_control.app --debug --camera-index 1   # use a non-default webcam
 python -m gesture_control.app --debug --control           # enable macOS cursor + pinch click
 python -m gesture_control.app --command "open cursor webpage"  # open that site in Google Chrome
+python -m gesture_control.app --command "next tab"        # send a fixed Chrome shortcut
 python -m gesture_control.app --version
 ```
 
@@ -69,17 +70,25 @@ gestures are scheduled for M3.
 ## Voice cheat-sheet (macOS)
 
 Wake word and speech-to-text are still ahead. Until then, pass one phrase
-with `--command`. It opens Google Chrome specifically (not the default
-browser) and does nothing for names that are not on the built-in list.
+with `--command`. Open commands launch Google Chrome specifically (not the
+default browser); navigation commands control the currently focused app and
+therefore require Chrome to be focused.
 
 - `open cursor webpage` / `open the cursor website` / `open cursor site`:
   https://cursor.com
 - `open apple website` / `open the apple webpage`: https://www.apple.com
 - `open https://example.com/docs`: that exact https URL
+- `next tab` / `switch tab`; `previous tab`
+- `new tab`; `close tab`
+- `go back` / `back`; `go forward` / `forward`
+- `reload` / `refresh`
 
 Unknown names (`open my bank`), `http://` URLs, and URLs with a username or
-password are rejected. The same safe-pause hotkey blocks this open. Controlling
-a page from inside the site is a later milestone.
+password are rejected. Extra unknown words are rejected by the navigation
+grammar. Each backend operation checks SafePause immediately, though the
+one-shot `--command` process does not start the global pause hotkey listener.
+Microphone input, wake word, TTS, and live in-page extension click/type are not
+part of this slice.
 
 ## Safety
 

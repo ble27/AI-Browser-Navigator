@@ -130,8 +130,10 @@ flowchart TD
   `"open apple website"`, ...) parsed into the same `Intent` shape
   the gesture recognizer produces, so both modalities share one Action Mapper.
   The first shipped phrases open an allowlisted https URL in Google Chrome
-  (`IntentType.OPEN_URL` → `InputBackend.open_url`). In-page control of a
-  website is a later milestone.
+  (`IntentType.OPEN_URL` → `InputBackend.open_url`). The first macOS Chrome
+  navigation slice also accepts fixed tab/history/reload phrases and maps them
+  through `InputBackend.navigate_browser` to keyboard shortcuts. Microphone,
+  wake word, TTS, and live in-page extension control remain later work.
 - Offline TTS via `Piper` for confirmations (e.g. "Paused", "Switched tab"),
   toggleable — important for blind/low-vision users.
 - **Stretch**: optional local LLM (Ollama) fallback for free-form phrasing, off

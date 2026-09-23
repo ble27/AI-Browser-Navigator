@@ -22,6 +22,22 @@ a mic.
       unit tests; `--command` starts its own unpaused process, so the hotkey
       in a separate `--control` session does not block it.
 
+## Voice — Google Chrome keyboard navigation (macOS)
+
+This slice uses deterministic command-line phrases, not a microphone, wake
+word, or TTS. Focus Google Chrome before each navigation command.
+
+- [ ] `--command "next tab"` and `--command "previous tab"` select the
+      expected adjacent Chrome tabs.
+- [ ] `--command "new tab"` opens a tab and `--command "close tab"` closes it.
+- [ ] `--command "back"` and `--command "forward"` move through the focused
+      tab's history.
+- [ ] `--command "refresh"` reloads the focused tab.
+- [ ] A paused `MacOSInputBackend` sends no navigation shortcut (unit-covered).
+- [ ] Extra words such as `next tab now` are rejected without sending keys.
+- [ ] No in-page extension click/type behavior is implied by this checklist;
+      the live Chrome page bridge remains disconnected.
+
 ## M1 — Camera + hand landmark pipeline
 
 > Model/inference correctness (camera-free) is confirmed via

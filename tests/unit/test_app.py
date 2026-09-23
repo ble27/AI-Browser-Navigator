@@ -232,6 +232,45 @@ def test_main_command_opens_cursor_in_the_injected_backend(
     assert opened_urls == ["https://cursor.com"]
 
 
+def test_main_command_dispatches_browser_navigation(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """``--command`` should route navigation through the shared mapper."""
+    browser_actions: list[BrowserAction] = []
+
+    class _RecordingBackend(InputBackend):
+        """Record browser navigation without injecting keyboard input."""
+
+        def screen_size(self) -> tuple[int, int]:
+            return 100, 100
+
+        def move_to(self, x: int, y: int) -> None:
+            del x, y
+
+        def click_left(self) -> None:
+            return None
+
+        def open_url(self, url: str) -> None:
+            del url
+
+        def navigate_browser(self, action: BrowserAction) -> None:
+            browser_actions.append(action)
+
+        def click_element(self, target_id: str) -> None:
+            del target_id
+
+        def type_text(self, target_id: str, text: str) -> None:
+            del target_id, text
+
+    monkeypatch.setattr(app, "MacOSInputBackend", _RecordingBackend)
+    monkeypatch.setattr(app.sys, "platform", "darwin")
+
+    exit_code = main(["--command", "next tab"])
+
+    assert exit_code == 0
+    assert browser_actions == [BrowserAction.NEXT_TAB]
+
+
 def test_main_command_unknown_phrase_opens_nothing(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
