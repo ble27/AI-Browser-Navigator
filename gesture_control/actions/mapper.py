@@ -14,6 +14,7 @@ class IntentType(StrEnum):
     MOVE_CURSOR = "move_cursor"
     CLICK_LEFT = "click_left"
     OPEN_URL = "open_url"
+    CLICK_ELEMENT = "click_element"
 
 
 @dataclass(frozen=True, slots=True)
@@ -25,12 +26,15 @@ class Intent:
         x: Target cursor horizontal coordinate, required for ``MOVE_CURSOR``.
         y: Target cursor vertical coordinate, required for ``MOVE_CURSOR``.
         url: HTTPS URL to open, required for ``OPEN_URL``.
+        target_id: Indexed page element id (``e1``, ``e2``, ...), required for
+            ``CLICK_ELEMENT``.
     """
 
     kind: IntentType
     x: int | None = None
     y: int | None = None
     url: str | None = None
+    target_id: str | None = None
 
 
 class ActionMapper:

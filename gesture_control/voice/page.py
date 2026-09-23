@@ -9,6 +9,10 @@ from __future__ import annotations
 from dataclasses import dataclass
 from html.parser import HTMLParser
 
+from gesture_control.actions import Intent, IntentType
+
+_CLICKABLE_ROLES = frozenset({"button", "link"})
+
 
 @dataclass(frozen=True, slots=True)
 class PageElement:
@@ -43,6 +47,48 @@ def index_html(html: str) -> tuple[PageElement, ...]:
     parser.feed(html)
     parser.close()
     return tuple(parser.elements)
+
+
+def resolve_page_command(transcript: str, elements: tuple[PageElement, ...]) -> Intent | None:
+    """Resolve a spoken click command onto a uniquely named page element.
+
+    Accepts case-insensitive transcripts of the form ``click`` + optional
+    ``on`` + an accessible name. Only ``button`` and ``link`` roles are
+    clickable; textboxes never match.
+
+    Args:
+        transcript: Raw voice transcript text to parse.
+        elements: Indexed page elements to match against.
+
+    Returns:
+        An ``Intent`` with ``IntentType.CLICK_ELEMENT`` and ``target_id`` set
+        when exactly one clickable element matches the spoken name; otherwise
+        ``None``.
+    """
+    collapsed = " ".join(transcript.split())
+    if not collapsed:
+        return None
+
+    tokens = collapsed.split()
+    if tokens[0].casefold() != "click":
+        return None
+
+    rest = tokens[1:]
+    if rest and rest[0].casefold() == "on":
+        rest = rest[1:]
+    if not rest:
+        return None
+
+    spoken_name = " ".join(rest).casefold()
+    matches = [
+        element
+        for element in elements
+        if element.role in _CLICKABLE_ROLES and element.name.casefold() == spoken_name
+    ]
+    # Ambiguous names return None: speech cannot choose which button to click.
+    if len(matches) != 1:
+        return None
+    return Intent(IntentType.CLICK_ELEMENT, target_id=matches[0].element_id)
 
 
 def _normalize_name(raw: str) -> str:
