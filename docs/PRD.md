@@ -2,7 +2,7 @@
 
 Status: Draft v1
 Owner: (project owner)
-Last updated: 2026-09-21
+Last updated: 2026-09-22
 
 ## 1. Problem statement
 
@@ -100,10 +100,14 @@ flowchart TD
 
 ### 7.1 Virtual mouse / cursor (v1)
 
-- Map index-fingertip position to screen cursor position, with a 1€ filter
-  (low cutoff at rest, higher cutoff while moving) so jitter is removed
-  without lagging a real swipe. An inset active region maps the comfortable
-  center of the camera image onto the full screen.
+- Map the **index fingertip** (default) to screen cursor position so aiming
+  matches where the finger points. Optional anchors (`index_mcp`, palm center)
+  trade that spatial match for less tip-flex during a click. Pinch detection
+  uses thumb + index **tips**; cursor motion freezes during pinch approach and
+  while pinched so closing the fingers does not walk the pointer off the
+  target. A 1€ filter (low cutoff at rest, higher cutoff while moving) removes
+  jitter without lagging a real swipe. An inset active region maps the
+  comfortable center of the camera image onto the full screen.
 - Works with either hand automatically; optional hand-preference lock setting.
 - Click = pinch (thumb + index). Double-click = double-pinch within a time
   window. Right-click = pinch with middle finger. Drag = pinch-and-hold + move.
@@ -213,18 +217,21 @@ Each milestone below ends in a working, demoable, committed, and tested state.
 Order chosen: macOS-first, then generalize to other OSes, then voice, then
 accessibility depth, then polish.
 
-1. **M0 — Repo & environment scaffold.**
-2. **M1 — Camera + hand landmark pipeline (macOS debug overlay).**
-3. **M2 — Virtual mouse v1: cursor mapping + pinch click + safe-pause hotkey (macOS).**
+1. **M0 — Repo & environment scaffold.** Done.
+2. **M1 — Camera + hand landmark pipeline (macOS debug overlay).** Done.
+3. **M2 — Virtual mouse v1: cursor mapping + pinch click + safe-pause hotkey (macOS).** Done.
 4. **M3 — Gesture vocabulary expansion** (double-click, right-click, drag,
-   dwell-click, fist-to-pause, swipe/scroll/zoom).
+   dwell-click, fist-to-pause, swipe/scroll/zoom). Not started.
 5. **M4 — Cross-platform `InputBackend` abstraction** (macOS/Windows/Linux X11/
-   Linux Wayland).
+   Linux Wayland). Not started. The macOS adapter exists; Windows and Linux do not.
 6. **M5 — Voice agent v1** (wake word + offline STT + shared Action Mapper +
-   offline TTS).
+   offline TTS). In progress. Explicitly started `--voice` mode now captures
+   microphone commands and transcribes them locally with faster-whisper before
+   dispatching browser navigation through the shared Action Mapper. Wake word,
+   text-to-speech, and clicking inside the open Chrome page are not in yet.
 7. **M6 — Accessibility layer** (calibration wizard, profiles, one-handed
-   audit, remapping).
-8. **M7 — Polish & packaging** (tray app, distributable builds, final docs).
+   audit, remapping). Not started.
+8. **M7 — Polish & packaging** (tray app, distributable builds, final docs). Not started.
 
 Full acceptance criteria and definition-of-done per milestone live in the
 project plan; see `docs/QA_CHECKLISTS.md` for the running manual test list and

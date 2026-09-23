@@ -7,8 +7,9 @@ first-class use case.
 
 > Status: M0 (scaffold), M1 (camera + hand-landmark debug overlay), and M2
 > (macOS virtual mouse) are implemented and unit-tested. Cursor control keeps
-> the newest camera frame and filters the fingertip so the pointer stays with
-> the hand. M2 awaits its final hardware verification pass.
+> the newest camera frame, tracks the index fingertip, and freezes motion
+> during pinch approach so clicks stay on target. M2 awaits its final hardware
+> verification pass.
 
 - Full product requirements: [`docs/PRD.md`](docs/PRD.md)
 - Contributor / AI-agent onboarding: [`AGENTS.md`](AGENTS.md)
@@ -38,6 +39,8 @@ Options:
 ```bash
 python -m gesture_control.app --debug --camera-index 1   # use a non-default webcam
 python -m gesture_control.app --debug --control           # enable macOS cursor + pinch click
+python -m gesture_control.app --debug --control --cursor-point palm
+python -m gesture_control.app --debug --control --edge-margin 0.2
 python -m gesture_control.app --command "open cursor webpage"  # open that site in Google Chrome
 python -m gesture_control.app --command "next tab"        # send a fixed Chrome shortcut
 python -m gesture_control.app --voice                     # continuously listen locally (macOS)
@@ -46,10 +49,12 @@ python -m gesture_control.app --version
 
 `--control` is explicit because it injects input. On macOS, grant the
 launching terminal **Accessibility** permission in **System Settings > Privacy
-& Security > Accessibility**. Move the index fingertip to move the pointer;
-touch the thumb and index fingertips together once to click. Press
-**Control+Option+Command+P** at any time to pause or resume all injected
-input.
+& Security > Accessibility**. Point with the index fingertip to move the
+pointer; touch the thumb and index fingertips together once to click.
+Press **Control+Option+Command+P** at any time to pause or resume all injected
+input. If the pointer needs too much arm travel, raise `--edge-margin`; if it
+overshoots near edges, lower it. If pinch-click tip flex walks the target, try
+`--cursor-point index_mcp` or `--cursor-point palm`.
 
 ## Why one toolkit works across macOS/Windows/Linux
 
@@ -60,9 +65,11 @@ architecture diagram in [`docs/PRD.md`](docs/PRD.md#6-cross-platform-architectur
 
 ## Gesture cheat-sheet
 
-- Move index fingertip: move cursor. The pointer uses a low-latency filter
-  and reaches the screen edges from the center of the camera view.
-- Thumb-index pinch: left-click.
+- Move index fingertip: move cursor. The pointer uses a 1€ filter, freezes
+  during pinch approach, and reaches screen edges from the center of the
+  camera view.
+- Thumb-index pinch: left-click (cursor freezes while the tips close so the
+  click stays on the aimed target).
 - Control+Option+Command+P: pause/resume all injected input.
 
 Double-click, right-click, drag, scrolling, fist pause, and navigation

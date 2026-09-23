@@ -46,6 +46,23 @@ def test_build_arg_parser_accepts_control_flag() -> None:
     assert args.control is True
 
 
+def test_build_arg_parser_defaults_to_index_tip_cursor_point() -> None:
+    """Default control tracking must follow the fingertip, not the knuckle."""
+    parser = build_arg_parser()
+    args = parser.parse_args(["--debug", "--control"])
+    assert args.cursor_point == "index_tip"
+
+
+def test_build_arg_parser_accepts_cursor_point_and_edge_margin() -> None:
+    """Control-mode A/B knobs should round-trip through the CLI."""
+    parser = build_arg_parser()
+    args = parser.parse_args(
+        ["--debug", "--control", "--cursor-point", "palm", "--edge-margin", "0.2"]
+    )
+    assert args.cursor_point == "palm"
+    assert args.edge_margin == pytest.approx(0.2)
+
+
 def test_main_returns_zero_without_arguments() -> None:
     """Running with no arguments should succeed and print a startup message."""
     exit_code = main([])
@@ -58,9 +75,15 @@ def test_main_dispatches_to_run_debug_overlay_when_debug_flag_set(
     """``--debug`` should call run_debug_overlay with the requested camera index."""
     received_camera_index: list[int] = []
 
-    def fake_run_debug_overlay(camera_index: int = 0, control: bool = False) -> int:
+    def fake_run_debug_overlay(
+        camera_index: int = 0,
+        control: bool = False,
+        cursor_point: object = None,
+        edge_margin: float | None = None,
+    ) -> int:
         received_camera_index.append(camera_index)
         assert control is False
+        del cursor_point, edge_margin
         return 0
 
     monkeypatch.setattr(app, "run_debug_overlay", fake_run_debug_overlay)
@@ -123,6 +146,25 @@ def test_pointer_dispatch_freezes_cursor_for_the_duration_of_a_pinch() -> None:
     ]
 
 
+def test_pointer_dispatch_freezes_during_pinch_approach() -> None:
+    """Closing fingertips must stop cursor updates before the click fires."""
+    action_mapper = _RecordingActionMapper()
+    recognizer = app.PointerGestureRecognizer(point_source=app.CursorPointSource.INDEX_TIP)
+    cursor_mapper = app.CursorMapper(101, 101, edge_margin=0.0)
+    presence = app.HandPresenceHold()
+    open_hand = _hand(Landmark(0.9, 0.5, 0.0), Landmark(0.1, 0.5, 0.0))
+    approaching = _hand(Landmark(0.7, 0.5, 0.0), Landmark(0.3, 0.5, 0.0))
+
+    app._dispatch_pointer_intents(
+        [open_hand], recognizer, cursor_mapper, action_mapper, presence, timestamp_s=0.0
+    )
+    app._dispatch_pointer_intents(
+        [approaching], recognizer, cursor_mapper, action_mapper, presence, timestamp_s=0.05
+    )
+
+    assert [intent.kind for intent in action_mapper.intents] == [IntentType.MOVE_CURSOR]
+
+
 def test_pointer_dispatch_bridges_a_single_missed_frame() -> None:
     """One empty detection must not drop the pointer or arm a second click."""
     action_mapper = _RecordingActionMapper()
@@ -163,8 +205,9 @@ def test_run_debug_overlay_returns_one_when_camera_unavailable(
             width: int | None = None,
             height: int | None = None,
             drop_stale_frames: bool = False,
+            stabilize_exposure: bool = False,
         ) -> None:
-            del device_index, width, height, drop_stale_frames
+            del device_index, width, height, drop_stale_frames, stabilize_exposure
 
         def __enter__(self) -> _FakeUnavailableCamera:
             raise CameraUnavailableError("no camera in this test environment")

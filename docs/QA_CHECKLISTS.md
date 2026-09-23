@@ -51,8 +51,8 @@ recording is uploaded.
       `forward`, and `refresh` performs the matching action in focused Chrome.
 - [ ] Initial speech is not clipped, and a completed short phrase dispatches
       after trailing silence without requiring a key press.
-- [ ] Empty noise and an unknown phrase print unrecognized feedback without
-      injecting keyboard or browser input.
+- [ ] Empty/no-speech transcription is ignored, and an unknown phrase prints
+      unrecognized feedback without injecting keyboard or browser input.
 - [ ] Control+Option+Command+P blocks/resumes actions for the entire voice
       session while recording and transcription continue.
 - [ ] Ctrl+C exits cleanly and releases the microphone and hotkey listener.
@@ -83,12 +83,17 @@ recording is uploaded.
 - [ ] With Terminal granted macOS Accessibility permission, `python -m
       gesture_control.app --debug --control` starts without an input-backend
       permission error.
-- [ ] Moving the index fingertip moves the on-screen cursor smoothly and
-      stays close to the hand in time (no multi-frame trail, no jitter, no
+- [ ] Moving the index fingertip moves the on-screen cursor smoothly and stays
+      spatially on-track with the finger (no multi-frame trail, no jitter, no
       runaway drift, no single-pixel hunting while the hand is held still).
+      Optional A/B if pinch flex walks clicks: `--cursor-point index_mcp` or
+      `--cursor-point palm`.
 - [ ] A pinch (thumb + index) reliably registers as a single click on a
-      real target (e.g., a Dock icon), without fingertip jitter moving the
-      cursor while pinched.
+      real target (e.g., a Dock icon), without fingertip flex moving the
+      cursor during pinch approach or while pinched.
+- [ ] Reaching screen corners does not require extreme arm travel; if it
+      does, raise `--edge-margin` (e.g. `0.2`). If the pointer overshoots near
+      edges, lower it (e.g. `0.1`).
 - [ ] The safe-pause global hotkey immediately stops all cursor/click
       injection while actively gesturing, and a second press resumes it.
 - [ ] Releasing the pinch does not produce a spurious extra click.

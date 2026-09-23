@@ -18,6 +18,7 @@ from gesture_control.actions import ActionMapper, Intent, IntentType
 from gesture_control.backends.macos import MacOSInputBackend, SafePauseHotkey
 from gesture_control.gestures.cursor import (
     CursorMapper,
+    CursorPointSource,
     HandPresenceHold,
     PointerGestureRecognizer,
 )
@@ -73,6 +74,26 @@ def build_arg_parser() -> argparse.ArgumentParser:
             "press Ctrl+Option+Command+P at any time to pause or resume input."
         ),
     )
+    parser.add_argument(
+        "--cursor-point",
+        choices=[source.value for source in CursorPointSource],
+        default=CursorPointSource.INDEX_TIP.value,
+        help=(
+            "Landmark set that drives the cursor when --control is on "
+            "(default: index_tip). The pointer follows the index fingertip; "
+            "use index_mcp or palm if pinch-click tip flex moves the target."
+        ),
+    )
+    parser.add_argument(
+        "--edge-margin",
+        type=float,
+        default=None,
+        help=(
+            "Normalized camera inset mapped onto the full screen when --control "
+            "is on (default: CursorMapper's built-in margin). Raise to need less "
+            "arm travel; lower if the pointer overshoots near edges."
+        ),
+    )
     modes.add_argument(
         "--command",
         type=str,
@@ -104,7 +125,12 @@ def build_arg_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def run_debug_overlay(camera_index: int = 0, control: bool = False) -> int:
+def run_debug_overlay(
+    camera_index: int = 0,
+    control: bool = False,
+    cursor_point: CursorPointSource = CursorPointSource.INDEX_TIP,
+    edge_margin: float | None = None,
+) -> int:
     """Run a live debug window showing the camera feed with hand-landmark overlays.
 
     Opens the requested camera and the MediaPipe HandLandmarker model (which
@@ -116,6 +142,8 @@ def run_debug_overlay(camera_index: int = 0, control: bool = False) -> int:
     Args:
         camera_index: OS camera device index to open.
         control: Whether to enable M2 cursor movement and pinch clicking.
+        cursor_point: Landmark set used as the cursor anchor under ``--control``.
+        edge_margin: Optional override for the camera-to-screen inset.
 
     Returns:
         A process exit code (``0`` on a clean exit, ``1`` if the camera
@@ -129,6 +157,7 @@ def run_debug_overlay(camera_index: int = 0, control: bool = False) -> int:
                     width=_CONTROL_CAPTURE_WIDTH if control else None,
                     height=_CONTROL_CAPTURE_HEIGHT if control else None,
                     drop_stale_frames=control,
+                    stabilize_exposure=control,
                 )
             )
             landmarker = stack.enter_context(
@@ -146,8 +175,13 @@ def run_debug_overlay(camera_index: int = 0, control: bool = False) -> int:
                 backend = MacOSInputBackend()
                 screen_width, screen_height = backend.screen_size()
                 action_mapper = ActionMapper(backend)
-                cursor_mapper = CursorMapper(screen_width, screen_height)
-                pointer_recognizer = PointerGestureRecognizer()
+                if edge_margin is None:
+                    cursor_mapper = CursorMapper(screen_width, screen_height)
+                else:
+                    cursor_mapper = CursorMapper(
+                        screen_width, screen_height, edge_margin=edge_margin
+                    )
+                pointer_recognizer = PointerGestureRecognizer(point_source=cursor_point)
                 presence_hold = HandPresenceHold()
                 stack.enter_context(
                     SafePauseHotkey(
@@ -291,7 +325,12 @@ def main(argv: list[str] | None = None) -> int:
     if args.voice:
         return run_voice_session(args.voice_model)
     if args.debug:
-        return run_debug_overlay(camera_index=args.camera_index, control=args.control)
+        return run_debug_overlay(
+            camera_index=args.camera_index,
+            control=args.control,
+            cursor_point=CursorPointSource(args.cursor_point),
+            edge_margin=args.edge_margin,
+        )
 
     print(f"gesture-control {__version__} -- see README.md to get started.")
     return 0
@@ -321,9 +360,9 @@ def _dispatch_pointer_intents(
         pointer_recognizer.reset()
         return
     pointer = pointer_recognizer.recognize(selected_hand)
-    # Freeze the last stable pointer target while pinched so fingertip jitter
-    # cannot move a target out from under the click.
-    if not pointer.is_pinching:
+    # Freeze during pinch approach and the held pinch so closing fingertips
+    # (and residual MCP flex) cannot walk the click target away.
+    if not pointer.freeze_cursor:
         x, y = cursor_mapper.map(pointer.x, pointer.y, now_s)
         action_mapper.dispatch(Intent(IntentType.MOVE_CURSOR, x=x, y=y))
     if pointer.pinch_started:
