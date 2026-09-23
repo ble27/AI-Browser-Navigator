@@ -154,8 +154,12 @@ ordinary HTTPS page, and start `--voice`.
 ## M5 — Voice agent
 
 - [ ] Load `chrome_extension/` unpacked, install the native host with its
-      explicit extension ID, restart Chrome, and confirm `ChromePageBridge`
-      snapshots only the active top-level HTTPS tab.
+      explicit extension ID (`./scripts/setup_page_bridge.sh`), restart Chrome,
+      and confirm `ChromePageBridge` snapshots only the active top-level HTTPS
+      (or loopback fixture) tab.
+- [ ] On the HTTPS-served or loopback `webassign_fixture.html`, voice/phrases
+      `answer is 42` and `submit answer` fill the Answer box and click Submit
+      Answer even when the control is outside a `<form>`.
 - [ ] On the HTTPS-served `chrome_extension/test_fixture.html`, click, focus,
       type, type-and-submit, and checkbox click all work using snapshot IDs.
 - [ ] `chrome://extensions`, a `file://` fixture, and a non-active HTTPS tab
