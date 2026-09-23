@@ -40,6 +40,7 @@ voice = [
     "openwakeword>=0.6,<1",
     "faster-whisper>=1.0,<2",
     "piper-tts>=1.2,<2",
+    "sounddevice>=0.5,<1",
 ]
 # Development / quality tooling.
 dev = [
