@@ -128,9 +128,10 @@ continue to use HTTPS.
 ## Known limitations
 
 - CAPTCHA and other anti-automation controls are not supported.
-- Closed shadow DOM is not visible to the content script.
+- Closed shadow DOM is not visible to the content script; open shadow roots
+  and same-origin iframes are indexed.
 - Canvas/WebGL controls have no indexable DOM elements.
-- Cross-origin iframe content is not indexed; only the top-level page is used.
+- Cross-origin iframe content is not indexed.
 - Elements without an accessible-ish name (`aria-label`, associated label,
   placeholder, visible text, or title) are omitted.
 - Highly dynamic pages can replace an element after a snapshot; the operation
@@ -138,3 +139,7 @@ continue to use HTTPS.
 - Form submission prefers ``form.requestSubmit()`` when a ``<form>`` wraps the
   field; otherwise the bridge presses Enter so LMS widgets without a form
   (common on WebAssign) still receive a submit signal.
+- Sites like apple.com expose search as a button (``Search apple.com``) that
+  reveals a combobox; ``click search`` opens it, then ``type … into search``
+  or ``search for …`` can fill it (page-first search opens the button when
+  needed).

@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Apple-style Bridge Fixture</title>
+    <style>
+      body { font: 16px system-ui; margin: 2rem auto; max-width: 44rem; line-height: 1.4; }
+      header { display: flex; gap: 1rem; align-items: center; margin-bottom: 2rem; }
+      #search-panel[hidden] { display: none; }
+      #search-panel { margin-top: 1rem; display: flex; gap: 0.5rem; }
+      input, button { font: inherit; padding: 0.5rem 0.75rem; }
+      #status { margin-top: 1.5rem; padding: 0.75rem; background: #f4f4f4; }
+      .shadow-host { margin-top: 2rem; padding: 1rem; border: 1px dashed #999; }
+    </style>
+  </head>
+  <body>
+    <h1>Apple-style search fixture</h1>
+    <p>
+      Mimics apple.com's collapsed global search: a visible
+      <strong>Search apple.com</strong> button reveals a combobox. Also embeds an
+      open-shadow Buy link so the content script's shadow traversal can be checked.
+    </p>
+
+    <header>
+      <a href="#store">Store</a>
+      <a href="#mac">Mac</a>
+      <button type="button" id="search-toggle" aria-label="Search apple.com" aria-expanded="false">
+        Search
+      </button>
+    </header>
+
+    <div id="search-panel" hidden>
+      <label for="site-search">Search</label>
+      <input
+        id="site-search"
+        type="search"
+        role="combobox"
+        aria-label="Search apple.com"
+        placeholder="Search apple.com"
+        autocomplete="off"
+      >
+      <button type="button" id="search-go">Go</button>
+    </div>
+
+    <div class="shadow-host" id="shadow-host"></div>
+    <div id="status" aria-live="polite">No search yet.</div>
+
+    <script>
+      const toggle = document.getElementById("search-toggle");
+      const panel = document.getElementById("search-panel");
+      const field = document.getElementById("site-search");
+      const status = document.getElementById("status");
+
+      function openSearch() {
+        panel.hidden = false;
+        toggle.setAttribute("aria-expanded", "true");
+        field.focus();
+      }
+
+      function runSearch() {
+        status.textContent = `Searched: ${field.value || "(empty)"}`;
+      }
+
+      toggle.addEventListener("click", openSearch);
+      document.getElementById("search-go").addEventListener("click", runSearch);
+      field.addEventListener("keydown", (event) => {
+        if (event.key === "Enter") {
+          event.preventDefault();
+          runSearch();
+        }
+      });
+
+      const host = document.getElementById("shadow-host");
+      const shadow = host.attachShadow({ mode: "open" });
+      shadow.innerHTML = `
+        <p>Open-shadow product card</p>
+        <a href="#buy-mac-mini" aria-label="Buy Mac mini">Buy</a>
+      `;
+    </script>
+  </body>
+</html>

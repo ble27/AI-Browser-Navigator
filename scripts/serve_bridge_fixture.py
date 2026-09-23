@@ -37,6 +37,7 @@ def main() -> int:
         base = f"http://{args.host}:{args.port}"
         print(f"Serving {extension_dir}")
         print(f"WebAssign-style fixture: {base}/webassign_fixture.html")
+        print(f"Apple-style fixture:     {base}/apple_fixture.html")
         print(f"Generic fixture:         {base}/test_fixture.html")
         print("Press Ctrl+C to stop.")
         try:

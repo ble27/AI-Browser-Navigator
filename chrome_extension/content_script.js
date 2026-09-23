@@ -98,6 +98,10 @@
 
   function roleFor(element) {
     const explicitRole = element.getAttribute("role");
+    // Combobox is how many site-search fields expose themselves (Apple, etc.).
+    if (explicitRole === "combobox") {
+      return "textbox";
+    }
     if (["button", "link", "textbox", "checkbox"].includes(explicitRole)) {
       return explicitRole;
     }
@@ -125,28 +129,52 @@
   }
 
   function isVisible(element) {
+    if (element.hasAttribute("disabled") || element.getAttribute("aria-hidden") === "true") {
+      return false;
+    }
+    // Prefer the browser's own visibility check when available (handles
+    // content-visibility and some offscreen cases better than rect alone).
+    if (typeof element.checkVisibility === "function") {
+      try {
+        return element.checkVisibility({
+          checkOpacity: true,
+          checkVisibilityCSS: true,
+          contentVisibilityAuto: true
+        });
+      } catch (_error) {
+        // Fall through to the manual heuristic below.
+      }
+    }
     const style = window.getComputedStyle(element);
     const rect = element.getBoundingClientRect();
     return (
       style.display !== "none" &&
       style.visibility !== "hidden" &&
+      style.opacity !== "0" &&
       rect.width > 0 &&
-      rect.height > 0 &&
-      !element.hasAttribute("disabled") &&
-      element.getAttribute("aria-hidden") !== "true"
+      rect.height > 0
     );
   }
 
-  function* iterDocuments(rootDocument) {
-    yield rootDocument;
-    for (const iframe of rootDocument.querySelectorAll("iframe")) {
-      try {
-        const child = iframe.contentDocument;
-        if (child) {
-          yield* iterDocuments(child);
+  function* iterDocuments(root) {
+    yield root;
+    if (typeof root.querySelectorAll !== "function") {
+      return;
+    }
+    for (const element of root.querySelectorAll("*")) {
+      if (element.shadowRoot) {
+        // Open shadow roots only; closed ones are intentionally unreachable.
+        yield* iterDocuments(element.shadowRoot);
+      }
+      if (element.tagName === "IFRAME") {
+        try {
+          const child = element.contentDocument;
+          if (child) {
+            yield* iterDocuments(child);
+          }
+        } catch (_error) {
+          // Cross-origin iframes are intentionally skipped.
         }
-      } catch (_error) {
-        // Cross-origin iframes are intentionally skipped.
       }
     }
   }
@@ -173,12 +201,25 @@
       "[role='button']",
       "[role='link']",
       "[role='textbox']",
-      "[role='checkbox']"
+      "[role='combobox']",
+      "[role='checkbox']",
+      "[role='searchbox']"
     ].join(",");
     const elements = [];
-    for (const doc of iterDocuments(document)) {
-      for (const element of doc.querySelectorAll(selector)) {
-        const role = roleFor(element);
+    const seen = new Set();
+    for (const root of iterDocuments(document)) {
+      if (!root.querySelectorAll) {
+        continue;
+      }
+      for (const element of root.querySelectorAll(selector)) {
+        if (seen.has(element)) {
+          continue;
+        }
+        seen.add(element);
+        let role = roleFor(element);
+        if (element.getAttribute("role") === "searchbox") {
+          role = "textbox";
+        }
         const name = accessibleName(element);
         if (role && name && isVisible(element)) {
           elements.push({ id: idFor(element), role, name });
