@@ -1,0 +1,24 @@
+{
+  "manifest_version": 3,
+  "name": "AI Gestures Page Bridge",
+  "version": "0.1.0",
+  "description": "Exposes named controls on the active HTTPS page to the local gesture-control app.",
+  "permissions": [
+    "nativeMessaging"
+  ],
+  "background": {
+    "service_worker": "service_worker.js"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://*/*"
+      ],
+      "js": [
+        "content_script.js"
+      ],
+      "run_at": "document_idle",
+      "all_frames": false
+    }
+  ]
+}

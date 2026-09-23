@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Page Bridge Manual Fixture</title>
+    <style>
+      body { font: 16px system-ui; margin: 3rem auto; max-width: 42rem; }
+      form, nav { display: grid; gap: 1rem; margin-block: 2rem; }
+      input, textarea, button { font: inherit; padding: 0.6rem; }
+    </style>
+  </head>
+  <body>
+    <h1>Page Bridge Manual Fixture</h1>
+    <p>Serve this file over HTTPS; the extension intentionally does not run on file URLs.</p>
+    <nav aria-label="Fixture links">
+      <a href="#result">Jump to result</a>
+      <button type="button" aria-label="Increment count" id="counter">Count: 0</button>
+    </nav>
+    <form id="sample-form">
+      <label for="email">Email address</label>
+      <input id="email" name="email" type="email" placeholder="name@example.com">
+      <label for="message">Message</label>
+      <textarea id="message" name="message"></textarea>
+      <label><input id="updates" type="checkbox"> Product updates</label>
+      <button type="submit">Send message</button>
+    </form>
+    <output id="result" aria-live="polite">No action yet.</output>
+    <script>
+      const counter = document.querySelector("#counter");
+      let count = 0;
+      counter.addEventListener("click", () => {
+        count += 1;
+        counter.textContent = `Count: ${count}`;
+      });
+      document.querySelector("#sample-form").addEventListener("submit", (event) => {
+        event.preventDefault();
+        document.querySelector("#result").textContent =
+          `Submitted ${new FormData(event.currentTarget).get("email") || "(empty email)"}`;
+      });
+    </script>
+  </body>
+</html>
