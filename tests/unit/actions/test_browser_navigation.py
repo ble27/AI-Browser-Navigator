@@ -26,6 +26,12 @@ class _RecordingBackend(InputBackend):
     def open_url(self, url: str) -> None:
         del url
 
+    def search_web(self, text: str) -> None:
+        del text
+
+    def scroll(self, amount: int) -> None:
+        del amount
+
     def click_element(self, target_id: str) -> None:
         del target_id
 
@@ -47,6 +53,7 @@ class _RecordingBackend(InputBackend):
         (IntentType.GO_BACK, BrowserAction.GO_BACK),
         (IntentType.GO_FORWARD, BrowserAction.GO_FORWARD),
         (IntentType.RELOAD_PAGE, BrowserAction.RELOAD_PAGE),
+        (IntentType.REOPEN_TAB, BrowserAction.REOPEN_TAB),
     ],
 )
 def test_action_mapper_dispatches_typed_browser_actions(

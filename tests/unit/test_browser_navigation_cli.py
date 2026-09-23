@@ -30,6 +30,12 @@ class _RecordingBackend(InputBackend):
     def open_url(self, url: str) -> None:
         self.opened_urls.append(url)
 
+    def search_web(self, text: str) -> None:
+        del text
+
+    def scroll(self, amount: int) -> None:
+        del amount
+
     def click_element(self, target_id: str) -> None:
         del target_id
 

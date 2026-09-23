@@ -124,6 +124,10 @@ def test_open_url_ignores_non_https_urls() -> None:
 
     backend.open_url("http://example.com")
     backend.open_url("javascript:alert(1)")
+    backend.open_url("https://localhost")
+    backend.open_url("https://127.0.0.1")
+    backend.open_url("https://router.local")
+    backend.open_url("https://user:pass@example.com")
 
     assert opened == []
 
@@ -164,6 +168,7 @@ def test_default_opener_launches_google_chrome(monkeypatch: pytest.MonkeyPatch) 
         (BrowserAction.GO_BACK, ("cmd", "[")),
         (BrowserAction.GO_FORWARD, ("cmd", "]")),
         (BrowserAction.RELOAD_PAGE, ("cmd", "r")),
+        (BrowserAction.REOPEN_TAB, ("cmd", "shift", "t")),
     ],
 )
 def test_browser_navigation_sends_fixed_chrome_shortcut(

@@ -26,6 +26,7 @@ def _backend_with_shortcut_recorder() -> tuple[MacOSInputBackend, list[tuple[str
         (BrowserAction.GO_BACK, ("cmd", "[")),
         (BrowserAction.GO_FORWARD, ("cmd", "]")),
         (BrowserAction.RELOAD_PAGE, ("cmd", "r")),
+        (BrowserAction.REOPEN_TAB, ("cmd", "shift", "t")),
     ],
 )
 def test_macos_browser_action_uses_fixed_shortcut(
@@ -49,3 +50,45 @@ def test_safe_pause_blocks_every_browser_shortcut(action: BrowserAction) -> None
     backend.navigate_browser(action)
 
     assert shortcuts == []
+
+
+def test_macos_search_uses_literal_injectable_query_seam() -> None:
+    """Search should pass the query unchanged to the fixed omnibox injector."""
+    backend = object.__new__(MacOSInputBackend)
+    InputBackend.__init__(backend)
+    searches: list[str] = []
+    backend._search_sender = searches.append
+
+    backend.search_web("cats; $(not code)")
+
+    assert searches == ["cats; $(not code)"]
+
+
+def test_macos_scroll_converts_signed_pages_to_fixed_notches() -> None:
+    """Each signed page unit should map to five native vertical notches."""
+    backend = object.__new__(MacOSInputBackend)
+    InputBackend.__init__(backend)
+    scrolls: list[int] = []
+    backend._scroll_sender = scrolls.append
+
+    backend.scroll(-3)
+    backend.scroll(2)
+
+    assert scrolls == [-15, 10]
+
+
+def test_safe_pause_blocks_search_and_scroll_injection() -> None:
+    """Safe-pause must block both newly added synthetic-input paths."""
+    backend = object.__new__(MacOSInputBackend)
+    InputBackend.__init__(backend)
+    searches: list[str] = []
+    scrolls: list[int] = []
+    backend._search_sender = searches.append
+    backend._scroll_sender = scrolls.append
+    backend.safe_pause.toggle()
+
+    backend.search_web("blocked")
+    backend.scroll(-3)
+
+    assert searches == []
+    assert scrolls == []

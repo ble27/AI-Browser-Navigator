@@ -16,6 +16,8 @@ class _FakeBackend(InputBackend):
         self.click_count = 0
         self.opened_urls: list[str] = []
         self.browser_actions: list[BrowserAction] = []
+        self.searches: list[str] = []
+        self.scrolls: list[int] = []
         self.clicked_elements: list[str] = []
         self.typed: list[tuple[str, str]] = []
 
@@ -37,6 +39,14 @@ class _FakeBackend(InputBackend):
     def navigate_browser(self, action: BrowserAction) -> None:
         if not self.safe_pause.is_paused:
             self.browser_actions.append(action)
+
+    def search_web(self, text: str) -> None:
+        if not self.safe_pause.is_paused:
+            self.searches.append(text)
+
+    def scroll(self, amount: int) -> None:
+        if not self.safe_pause.is_paused:
+            self.scrolls.append(amount)
 
     def click_element(self, target_id: str) -> None:
         if not self.safe_pause.is_paused:
@@ -139,6 +149,38 @@ def test_action_mapper_clicks_a_named_page_element() -> None:
     ActionMapper(backend).dispatch(Intent(IntentType.CLICK_ELEMENT, target_id="e1"))
 
     assert backend.clicked_elements == ["e1"]
+
+
+def test_action_mapper_dispatches_search_and_scroll_payloads() -> None:
+    """Search text and signed page units should reach their backend methods."""
+    backend = _FakeBackend()
+    mapper = ActionMapper(backend)
+
+    mapper.dispatch(Intent(IntentType.SEARCH_WEB, text="literal query"))
+    mapper.dispatch(Intent(IntentType.SCROLL, amount=-4))
+
+    assert backend.searches == ["literal query"]
+    assert backend.scrolls == [-4]
+
+
+@pytest.mark.parametrize(
+    "intent",
+    [
+        Intent(IntentType.SEARCH_WEB),
+        Intent(IntentType.SEARCH_WEB, text=""),
+        Intent(IntentType.SCROLL),
+        Intent(IntentType.SCROLL, amount=0),
+    ],
+)
+def test_action_mapper_rejects_invalid_search_and_scroll_payloads(intent: Intent) -> None:
+    """Missing search text and zero/missing scroll amounts must not dispatch."""
+    backend = _FakeBackend()
+
+    with pytest.raises(ValueError):
+        ActionMapper(backend).dispatch(intent)
+
+    assert backend.searches == []
+    assert backend.scrolls == []
 
 
 def test_click_element_intent_requires_a_target_id() -> None:

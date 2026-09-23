@@ -48,6 +48,12 @@ class _Backend(InputBackend):
     def navigate_browser(self, action: BrowserAction) -> None:
         self.browser_actions.append(action)
 
+    def search_web(self, text: str) -> None:
+        del text
+
+    def scroll(self, amount: int) -> None:
+        del amount
+
     def click_element(self, target_id: str) -> None:
         del target_id
 

@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import ipaddress
+import re
 import subprocess
 from collections.abc import Callable
 from typing import Protocol
@@ -18,7 +20,10 @@ _CHROME_SHORTCUTS: dict[BrowserAction, tuple[str, ...]] = {
     BrowserAction.GO_BACK: ("cmd", "["),
     BrowserAction.GO_FORWARD: ("cmd", "]"),
     BrowserAction.RELOAD_PAGE: ("cmd", "r"),
+    BrowserAction.REOPEN_TAB: ("cmd", "shift", "t"),
 }
+_SCROLL_NOTCHES_PER_PAGE = 5
+_HOST_LABEL = re.compile(r"^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$", re.IGNORECASE)
 
 
 class _HotkeyListener(Protocol):
@@ -52,13 +57,82 @@ def _send_pynput_shortcut(keys: tuple[str, ...]) -> None:
 
     controller = keyboard.Controller()
     resolved_keys = [
-        getattr(keyboard.Key, key) if key in {"cmd", "alt", "left", "right"} else key
+        (
+            getattr(keyboard.Key, key)
+            if key in {"cmd", "alt", "shift", "left", "right", "enter"}
+            else key
+        )
         for key in keys
     ]
     for key in resolved_keys:
         controller.press(key)
     for key in reversed(resolved_keys):
         controller.release(key)
+
+
+def _search_web_with_pynput(text: str) -> None:
+    """Focus Chrome's omnibox, type literal text, and submit it.
+
+    Args:
+        text: Literal search query to type.
+    """
+    from pynput import keyboard
+
+    controller = keyboard.Controller()
+    controller.press(keyboard.Key.cmd)
+    controller.press("l")
+    controller.release("l")
+    controller.release(keyboard.Key.cmd)
+    controller.type(text)
+    controller.press(keyboard.Key.enter)
+    controller.release(keyboard.Key.enter)
+
+
+def _scroll_with_pynput(notches: int) -> None:
+    """Inject one fixed signed vertical scroll through pynput.
+
+    Args:
+        notches: Positive values scroll up and negative values scroll down.
+    """
+    from pynput import mouse
+
+    mouse.Controller().scroll(0, notches)
+
+
+def _is_safe_https_url(url: str) -> bool:
+    """Return whether a URL targets a public HTTPS hostname without credentials."""
+    if any(character.isspace() for character in url) or "\\" in url:
+        return False
+    parsed = urlparse(url)
+    if parsed.scheme.casefold() != "https" or not parsed.netloc:
+        return False
+    if parsed.username is not None or parsed.password is not None:
+        return False
+    try:
+        parsed_port = parsed.port
+    except ValueError:
+        return False
+    if parsed_port is not None and not 1 <= parsed_port <= 65_535:
+        return False
+    hostname = parsed.hostname
+    if hostname is None:
+        return False
+    host = hostname.rstrip(".").casefold()
+    try:
+        ipaddress.ip_address(host)
+    except ValueError:
+        pass
+    else:
+        return False
+    if host == "localhost" or host.endswith((".internal", ".local", ".localhost")):
+        return False
+    labels = host.split(".")
+    return (
+        len(labels) >= 2
+        and all(_HOST_LABEL.fullmatch(label) for label in labels)
+        and len(labels[-1]) >= 2
+        and (labels[-1].isalpha() or labels[-1].startswith("xn--"))
+    )
 
 
 class _MissingPageBridge:
@@ -113,6 +187,8 @@ class MacOSInputBackend(InputBackend):
         opener: Callable[[str], None] | None = None,
         page_bridge: PageBridge | None = None,
         shortcut_sender: Callable[[tuple[str, ...]], None] | None = None,
+        search_sender: Callable[[str], None] | None = None,
+        scroll_sender: Callable[[int], None] | None = None,
     ) -> None:
         """Create a macOS mouse controller.
 
@@ -124,6 +200,10 @@ class MacOSInputBackend(InputBackend):
                 bridge that refuses page actions until Chrome is connected.
             shortcut_sender: Optional keyboard shortcut injector used by
                 :meth:`navigate_browser`. Defaults to pynput.
+            search_sender: Optional fixed omnibox search injector. Defaults to
+                pynput.
+            scroll_sender: Optional signed native-notch injector. Defaults to
+                pynput.
         """
         super().__init__(safe_pause=safe_pause)
         from pynput import mouse
@@ -136,6 +216,10 @@ class MacOSInputBackend(InputBackend):
         self._shortcut_sender = (
             shortcut_sender if shortcut_sender is not None else _send_pynput_shortcut
         )
+        self._search_sender = (
+            search_sender if search_sender is not None else _search_web_with_pynput
+        )
+        self._scroll_sender = scroll_sender if scroll_sender is not None else _scroll_with_pynput
 
     def screen_size(self) -> tuple[int, int]:
         """Return the primary screen dimensions in pixels."""
@@ -174,13 +258,9 @@ class MacOSInputBackend(InputBackend):
         """
         if self.safe_pause.is_paused:
             return
-        parsed = urlparse(url)
-        # https-only: reject http/javascript/file and other schemes so voice
-        # open-URL never launches arbitrary local or script handlers.
-        if parsed.scheme.casefold() != "https" or not parsed.netloc:
-            return
-        # Also reject userinfo so a hand-built Intent cannot bypass the parser.
-        if parsed.username is not None or parsed.password is not None:
+        # Revalidate at the injection boundary so hand-built Intents cannot
+        # bypass the voice parser's scheme, credential, or host restrictions.
+        if not _is_safe_https_url(url):
             return
         self._opener(url)
 
@@ -193,6 +273,28 @@ class MacOSInputBackend(InputBackend):
         if self.safe_pause.is_paused:
             return
         self._shortcut_sender(_CHROME_SHORTCUTS[action])
+
+    def search_web(self, text: str) -> None:
+        """Search through Chrome's omnibox when the safe-pause gate is open.
+
+        Args:
+            text: Literal query text to type and submit.
+        """
+        if self.safe_pause.is_paused or not text:
+            return
+        self._search_sender(text)
+
+    def scroll(self, amount: int) -> None:
+        """Scroll a fixed number of native notches per signed page unit.
+
+        Positive page units scroll up and negative page units scroll down.
+
+        Args:
+            amount: Non-zero signed page count.
+        """
+        if self.safe_pause.is_paused or amount == 0:
+            return
+        self._scroll_sender(amount * _SCROLL_NOTCHES_PER_PAGE)
 
     def click_element(self, target_id: str) -> None:
         """Click an indexed page element when the safe-pause gate is open.

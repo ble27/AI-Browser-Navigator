@@ -347,6 +347,12 @@ def test_main_command_opens_cursor_in_the_injected_backend(
         def navigate_browser(self, action: BrowserAction) -> None:
             del action
 
+        def search_web(self, text: str) -> None:
+            del text
+
+        def scroll(self, amount: int) -> None:
+            del amount
+
         def click_element(self, target_id: str) -> None:
             del target_id
 
@@ -390,6 +396,12 @@ def test_main_command_dispatches_browser_navigation(
         def navigate_browser(self, action: BrowserAction) -> None:
             browser_actions.append(action)
 
+        def search_web(self, text: str) -> None:
+            del text
+
+        def scroll(self, amount: int) -> None:
+            del amount
+
         def click_element(self, target_id: str) -> None:
             del target_id
 
@@ -428,6 +440,12 @@ def test_main_command_unknown_phrase_opens_nothing(
 
         def navigate_browser(self, action: BrowserAction) -> None:
             del action
+
+        def search_web(self, text: str) -> None:
+            del text
+
+        def scroll(self, amount: int) -> None:
+            del amount
 
         def click_element(self, target_id: str) -> None:
             del target_id
