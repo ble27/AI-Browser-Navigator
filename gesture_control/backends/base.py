@@ -134,3 +134,20 @@ class InputBackend(ABC):
             target_id: Id of the textbox from the page index.
             text: Characters to insert. This is never evaluated as code.
         """
+
+    def focus_element(self, target_id: str) -> None:
+        """Focus a page element unless input injection is paused.
+
+        Args:
+            target_id: Opaque element id from the active-page snapshot.
+        """
+        raise NotImplementedError("This backend does not support focusing page elements.")
+
+    def submit_text(self, target_id: str, text: str) -> None:
+        """Type and submit text through a page field unless input is paused.
+
+        Args:
+            target_id: Opaque textbox id from the active-page snapshot.
+            text: Literal text to enter and submit.
+        """
+        raise NotImplementedError("This backend does not support submitting page text.")

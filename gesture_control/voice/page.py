@@ -11,8 +11,11 @@ from html.parser import HTMLParser
 
 from gesture_control.actions import Intent, IntentType
 
-_CLICKABLE_ROLES = frozenset({"button", "link"})
+_CLICKABLE_ROLES = frozenset({"button", "link", "checkbox"})
 _TYPEABLE_ROLES = frozenset({"textbox"})
+_CLICK_VERBS = frozenset({"click", "press", "tap", "choose", "activate"})
+_FOCUS_VERBS = frozenset({"focus", "select"})
+_FIELD_SUFFIXES = frozenset({"box", "field", "textbox", "button", "link"})
 
 
 @dataclass(frozen=True, slots=True)
@@ -70,11 +73,19 @@ def resolve_page_command(transcript: str, elements: tuple[PageElement, ...]) -> 
         return None
 
     tokens = collapsed.split()
-    verb = tokens[0].casefold()
-    if verb == "click":
+    verb = tokens[0].casefold().strip(".,!?")
+    if verb in _CLICK_VERBS:
         return _resolve_click(tokens[1:], elements)
+    if verb in _FOCUS_VERBS:
+        return _resolve_focus(tokens[1:], elements)
     if verb == "type":
         return _resolve_type(tokens[1:], elements)
+    if verb == "enter":
+        return _resolve_enter(tokens[1:], elements)
+    if verb in {"fill", "put"}:
+        return _resolve_fill(tokens[1:], elements)
+    if verb in {"search", "lookup"} or (verb == "look" and len(tokens) > 1):
+        return _resolve_search(tokens, elements)
     return None
 
 
@@ -95,11 +106,12 @@ def _resolve_click(rest: list[str], elements: tuple[PageElement, ...]) -> Intent
         return None
 
     spoken_name = " ".join(rest).casefold()
-    matches = [
-        element
-        for element in elements
-        if element.role in _CLICKABLE_ROLES and element.name.casefold() == spoken_name
-    ]
+    matches = _matching_elements(spoken_name, elements, _CLICKABLE_ROLES)
+    if len(matches) == 0:
+        # Saying "click the search box" means focus that textbox, not submit it.
+        textboxes = _matching_elements(spoken_name, elements, _TYPEABLE_ROLES)
+        if len(textboxes) == 1:
+            return Intent(IntentType.FOCUS_ELEMENT, target_id=textboxes[0].element_id)
     # Ambiguous names return None: speech cannot choose which button to click.
     if len(matches) != 1:
         return None
@@ -130,12 +142,7 @@ def _resolve_type(rest: list[str], elements: tuple[PageElement, ...]) -> Intent 
         return None
 
     field_folded = field_name.casefold()
-    matches = [
-        element
-        for element in elements
-        # Only textboxes accept typed text; buttons/links are click targets.
-        if element.role in _TYPEABLE_ROLES and element.name.casefold() == field_folded
-    ]
+    matches = _matching_elements(field_folded, elements, _TYPEABLE_ROLES)
     # Ambiguous names return None: speech cannot choose which field to type into.
     if len(matches) != 1:
         return None
@@ -144,6 +151,122 @@ def _resolve_type(rest: list[str], elements: tuple[PageElement, ...]) -> Intent 
         target_id=matches[0].element_id,
         text=typed_text,
     )
+
+
+def _resolve_focus(rest: list[str], elements: tuple[PageElement, ...]) -> Intent | None:
+    """Resolve focus/select phrases onto one textbox."""
+    while rest and rest[0].casefold() in {"on", "the"}:
+        rest = rest[1:]
+    if not rest:
+        return None
+    matches = _matching_elements(" ".join(rest), elements, _TYPEABLE_ROLES)
+    if len(matches) != 1:
+        return None
+    return Intent(IntentType.FOCUS_ELEMENT, target_id=matches[0].element_id)
+
+
+def _resolve_enter(rest: list[str], elements: tuple[PageElement, ...]) -> Intent | None:
+    """Resolve ``enter <text> in/into <field>``."""
+    return _resolve_text_separator(rest, elements, separators={"in", "into"})
+
+
+def _resolve_fill(rest: list[str], elements: tuple[PageElement, ...]) -> Intent | None:
+    """Resolve ``fill/put <field> with <text>``."""
+    separator_indices = [i for i, token in enumerate(rest) if token.casefold() == "with"]
+    if not separator_indices:
+        return None
+    separator = separator_indices[-1]
+    field_name = " ".join(rest[:separator])
+    text = " ".join(rest[separator + 1 :])
+    return _text_intent_for_field(field_name, text, elements, submit=False)
+
+
+def _resolve_text_separator(
+    rest: list[str],
+    elements: tuple[PageElement, ...],
+    separators: set[str],
+) -> Intent | None:
+    """Resolve text before a separator and a field name after it."""
+    indices = [i for i, token in enumerate(rest) if token.casefold() in separators]
+    if not indices:
+        return None
+    separator = indices[-1]
+    return _text_intent_for_field(
+        " ".join(rest[separator + 1 :]),
+        " ".join(rest[:separator]),
+        elements,
+        submit=False,
+    )
+
+
+def _resolve_search(tokens: list[str], elements: tuple[PageElement, ...]) -> Intent | None:
+    """Resolve a search phrase through the active page's unique search box."""
+    folded = [token.casefold().strip(".,!?") for token in tokens]
+    if folded[:2] == ["look", "up"]:
+        query_tokens = tokens[2:]
+    elif folded[0] == "lookup":
+        query_tokens = tokens[1:]
+    elif folded[0] == "search":
+        query_tokens = tokens[2:] if len(folded) > 1 and folded[1] == "for" else tokens[1:]
+    else:
+        return None
+    query = " ".join(query_tokens).strip()
+    if not query:
+        return None
+    search_boxes = tuple(
+        element
+        for element in elements
+        if element.role in _TYPEABLE_ROLES and "search" in _normalize_name(element.name).casefold()
+    )
+    if len(search_boxes) != 1:
+        return None
+    return Intent(IntentType.SUBMIT_TEXT, target_id=search_boxes[0].element_id, text=query)
+
+
+def _text_intent_for_field(
+    field_name: str,
+    text: str,
+    elements: tuple[PageElement, ...],
+    *,
+    submit: bool,
+) -> Intent | None:
+    """Build a type/submit intent for one uniquely matched field."""
+    if not field_name.strip() or not text.strip():
+        return None
+    matches = _matching_elements(field_name, elements, _TYPEABLE_ROLES)
+    if len(matches) != 1:
+        return None
+    kind = IntentType.SUBMIT_TEXT if submit else IntentType.TYPE_TEXT
+    return Intent(kind, target_id=matches[0].element_id, text=text.strip())
+
+
+def _matching_elements(
+    spoken_name: str,
+    elements: tuple[PageElement, ...],
+    roles: frozenset[str],
+) -> list[PageElement]:
+    """Return exact or unique partial accessible-name matches."""
+    normalized = _normalize_spoken_name(spoken_name)
+    if not normalized:
+        return []
+    eligible = [element for element in elements if element.role in roles]
+    exact = [element for element in eligible if _normalize_spoken_name(element.name) == normalized]
+    if exact:
+        return exact
+    partial = [
+        element for element in eligible if normalized in _normalize_spoken_name(element.name)
+    ]
+    return partial if len(partial) == 1 else []
+
+
+def _normalize_spoken_name(raw: str) -> str:
+    """Normalize speech and remove optional control-role suffixes."""
+    tokens = _normalize_name(raw).casefold().strip(".,!?").split()
+    while tokens and tokens[0] in {"on", "the"}:
+        tokens = tokens[1:]
+    if tokens and tokens[-1] in _FIELD_SUFFIXES:
+        tokens = tokens[:-1]
+    return " ".join(tokens)
 
 
 def _normalize_name(raw: str) -> str:

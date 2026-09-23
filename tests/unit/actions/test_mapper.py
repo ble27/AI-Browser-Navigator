@@ -19,7 +19,9 @@ class _FakeBackend(InputBackend):
         self.searches: list[str] = []
         self.scrolls: list[int] = []
         self.clicked_elements: list[str] = []
+        self.focused_elements: list[str] = []
         self.typed: list[tuple[str, str]] = []
+        self.submitted: list[tuple[str, str]] = []
 
     def screen_size(self) -> tuple[int, int]:
         return 100, 100
@@ -55,6 +57,14 @@ class _FakeBackend(InputBackend):
     def type_text(self, target_id: str, text: str) -> None:
         if not self.safe_pause.is_paused:
             self.typed.append((target_id, text))
+
+    def focus_element(self, target_id: str) -> None:
+        if not self.safe_pause.is_paused:
+            self.focused_elements.append(target_id)
+
+    def submit_text(self, target_id: str, text: str) -> None:
+        if not self.safe_pause.is_paused:
+            self.submitted.append((target_id, text))
 
 
 def test_action_mapper_dispatches_cursor_move_and_click() -> None:
@@ -199,6 +209,23 @@ def test_action_mapper_types_into_a_named_field() -> None:
     ActionMapper(backend).dispatch(Intent(IntentType.TYPE_TEXT, target_id="e2", text="hello"))
 
     assert backend.typed == [("e2", "hello")]
+
+
+def test_action_mapper_focuses_and_submits_page_fields() -> None:
+    backend = _FakeBackend()
+    mapper = ActionMapper(backend)
+
+    mapper.dispatch(Intent(IntentType.FOCUS_ELEMENT, target_id="search"))
+    mapper.dispatch(
+        Intent(
+            IntentType.SUBMIT_TEXT,
+            target_id="search",
+            text="mechanical keyboard",
+        )
+    )
+
+    assert backend.focused_elements == ["search"]
+    assert backend.submitted == [("search", "mechanical keyboard")]
 
 
 def test_type_text_intent_requires_text() -> None:

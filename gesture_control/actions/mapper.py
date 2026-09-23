@@ -25,7 +25,9 @@ class IntentType(StrEnum):
     SEARCH_WEB = "search_web"
     SCROLL = "scroll"
     CLICK_ELEMENT = "click_element"
+    FOCUS_ELEMENT = "focus_element"
     TYPE_TEXT = "type_text"
+    SUBMIT_TEXT = "submit_text"
 
 
 _BROWSER_ACTIONS: dict[IntentType, BrowserAction] = {
@@ -113,7 +115,15 @@ class ActionMapper:
             if not intent.target_id:
                 raise ValueError("CLICK_ELEMENT intents require a target_id.")
             self._backend.click_element(intent.target_id)
+        elif intent.kind is IntentType.FOCUS_ELEMENT:
+            if not intent.target_id:
+                raise ValueError("FOCUS_ELEMENT intents require a target_id.")
+            self._backend.focus_element(intent.target_id)
         elif intent.kind is IntentType.TYPE_TEXT:
             if not intent.target_id or intent.text is None:
                 raise ValueError("TYPE_TEXT intents require a target_id and text.")
             self._backend.type_text(intent.target_id, intent.text)
+        elif intent.kind is IntentType.SUBMIT_TEXT:
+            if not intent.target_id or intent.text is None:
+                raise ValueError("SUBMIT_TEXT intents require a target_id and text.")
+            self._backend.submit_text(intent.target_id, intent.text)

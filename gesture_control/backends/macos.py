@@ -167,6 +167,16 @@ class _MissingPageBridge:
         del target_id, text
         raise RuntimeError("No Chrome page bridge is connected; cannot type into a page element.")
 
+    def focus(self, target_id: str) -> None:
+        """Refuse page focus when no bridge is connected."""
+        del target_id
+        raise RuntimeError("No Chrome page bridge is connected; cannot focus a page element.")
+
+    def type_and_submit(self, target_id: str, text: str) -> None:
+        """Refuse page submission when no bridge is connected."""
+        del target_id, text
+        raise RuntimeError("No Chrome page bridge is connected; cannot submit page text.")
+
 
 class PageBridge(Protocol):
     """Fixed page operations a Chrome bridge may perform."""
@@ -176,6 +186,12 @@ class PageBridge(Protocol):
 
     def type_text(self, target_id: str, text: str) -> None:
         """Insert literal text into the element with this index id."""
+
+    def focus(self, target_id: str) -> None:
+        """Focus the element with this index id."""
+
+    def type_and_submit(self, target_id: str, text: str) -> None:
+        """Insert and submit literal text through this element."""
 
 
 class MacOSInputBackend(InputBackend):
@@ -316,6 +332,18 @@ class MacOSInputBackend(InputBackend):
         if self.safe_pause.is_paused:
             return
         self._page_bridge.type_text(target_id, text)
+
+    def focus_element(self, target_id: str) -> None:
+        """Focus an indexed page element when the gate is open."""
+        if self.safe_pause.is_paused:
+            return
+        self._page_bridge.focus(target_id)
+
+    def submit_text(self, target_id: str, text: str) -> None:
+        """Type and submit through an indexed field when the gate is open."""
+        if self.safe_pause.is_paused:
+            return
+        self._page_bridge.type_and_submit(target_id, text)
 
 
 class SafePauseHotkey:

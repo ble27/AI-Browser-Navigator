@@ -67,11 +67,14 @@ def test_two_buttons_with_the_same_name_are_ambiguous() -> None:
     assert resolve_page_command("click on log in", elements) is None
 
 
-def test_click_does_not_activate_a_textbox() -> None:
-    """Click resolution must ignore textboxes even when the name matches."""
+def test_clicking_a_textbox_focuses_it_without_submitting() -> None:
+    """A spoken click on a textbox should become a focus operation."""
     elements = (PageElement(element_id="e1", role="textbox", name="Email"),)
 
-    assert resolve_page_command("click on email", elements) is None
+    assert resolve_page_command("click on email", elements) == Intent(
+        IntentType.FOCUS_ELEMENT,
+        target_id="e1",
+    )
 
 
 def test_indexed_log_in_button_can_be_clicked_by_name() -> None:
@@ -147,3 +150,63 @@ def test_type_without_into_returns_none() -> None:
 
     assert IntentType.TYPE_TEXT
     assert resolve_page_command("type hello", elements) is None
+
+
+def test_press_and_partial_button_name_resolve_uniquely() -> None:
+    elements = (
+        PageElement(element_id="e1", role="button", name="Add to Cart"),
+        PageElement(element_id="e2", role="link", name="Cart"),
+    )
+
+    assert resolve_page_command("press add to cart button", elements) == Intent(
+        IntentType.CLICK_ELEMENT, target_id="e1"
+    )
+
+
+def test_focus_search_matches_unique_search_textbox() -> None:
+    elements = (
+        PageElement(element_id="search", role="textbox", name="Search Amazon"),
+        PageElement(element_id="email", role="textbox", name="Email"),
+    )
+
+    assert resolve_page_command("focus on search box", elements) == Intent(
+        IntentType.FOCUS_ELEMENT, target_id="search"
+    )
+
+
+def test_search_for_item_submits_through_page_search() -> None:
+    elements = (
+        PageElement(element_id="search", role="textbox", name="Search Amazon"),
+        PageElement(element_id="email", role="textbox", name="Email"),
+    )
+
+    assert resolve_page_command("search for noise cancelling headphones", elements) == Intent(
+        IntentType.SUBMIT_TEXT,
+        target_id="search",
+        text="noise cancelling headphones",
+    )
+
+
+def test_enter_and_fill_vocabulary_type_into_named_fields() -> None:
+    elements = (PageElement(element_id="email", role="textbox", name="Email address"),)
+
+    assert resolve_page_command("enter user@example.com into email", elements) == Intent(
+        IntentType.TYPE_TEXT,
+        target_id="email",
+        text="user@example.com",
+    )
+    assert resolve_page_command("fill email with user@example.com", elements) == Intent(
+        IntentType.TYPE_TEXT,
+        target_id="email",
+        text="user@example.com",
+    )
+
+
+def test_ambiguous_partial_field_name_never_guesses() -> None:
+    elements = (
+        PageElement(element_id="one", role="textbox", name="Search products"),
+        PageElement(element_id="two", role="textbox", name="Search orders"),
+    )
+
+    assert resolve_page_command("focus search", elements) is None
+    assert resolve_page_command("search for keyboard", elements) is None

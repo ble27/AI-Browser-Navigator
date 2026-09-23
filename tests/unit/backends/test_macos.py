@@ -197,7 +197,9 @@ class _RecordingPageBridge:
 
     def __init__(self) -> None:
         self.clicks: list[str] = []
+        self.focused: list[str] = []
         self.typed: list[tuple[str, str]] = []
+        self.submitted: list[tuple[str, str]] = []
 
     def click(self, target_id: str) -> None:
         """Record one element click."""
@@ -206,6 +208,14 @@ class _RecordingPageBridge:
     def type_text(self, target_id: str, text: str) -> None:
         """Record one type action."""
         self.typed.append((target_id, text))
+
+    def focus(self, target_id: str) -> None:
+        """Record one focus action."""
+        self.focused.append(target_id)
+
+    def type_and_submit(self, target_id: str, text: str) -> None:
+        """Record one type-and-submit action."""
+        self.submitted.append((target_id, text))
 
 
 def _backend_with_page_bridge() -> tuple[MacOSInputBackend, _RecordingPageBridge]:
@@ -234,6 +244,16 @@ def test_type_text_reaches_the_page_bridge() -> None:
     assert bridge.typed == [("e2", "hello")]
 
 
+def test_focus_and_submit_reach_the_page_bridge() -> None:
+    backend, bridge = _backend_with_page_bridge()
+
+    backend.focus_element("search")
+    backend.submit_text("search", "keyboard")
+
+    assert bridge.focused == ["search"]
+    assert bridge.submitted == [("search", "keyboard")]
+
+
 def test_paused_backend_does_not_call_the_page_bridge() -> None:
     """Safe-pause must block page click and type before the bridge."""
     backend, bridge = _backend_with_page_bridge()
@@ -241,6 +261,10 @@ def test_paused_backend_does_not_call_the_page_bridge() -> None:
 
     backend.click_element("e1")
     backend.type_text("e2", "hello")
+    backend.focus_element("search")
+    backend.submit_text("search", "keyboard")
 
     assert bridge.clicks == []
     assert bridge.typed == []
+    assert bridge.focused == []
+    assert bridge.submitted == []
