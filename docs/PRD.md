@@ -136,12 +136,16 @@ flowchart TD
   `"switch tab"`, `"pause tracking"`, `"open cursor webpage"`,
   `"open apple website"`, ...) parsed into the same `Intent` shape
   the gesture recognizer produces, so both modalities share one Action Mapper.
-  The first shipped phrases open an allowlisted https URL in Google Chrome
-  (`IntentType.OPEN_URL` → `InputBackend.open_url`). The first macOS Chrome
-  navigation slice also accepts fixed tab/history/reload phrases and maps them
-  through `InputBackend.navigate_browser` to keyboard shortcuts. Microphone
-  transcription now feeds that same parser and Action Mapper. Wake word, TTS,
-  and live in-page extension control remain later work.
+  Open commands accept six named-site aliases or a syntactically valid public
+  domain and reject credentials, local/IP hosts, whitespace, and non-HTTPS
+  explicit schemes (`IntentType.OPEN_URL` → `InputBackend.open_url`). The
+  macOS Chrome slice also supports explicit tab/history/reload/reopen aliases,
+  literal omnibox search (`SEARCH_WEB`), and signed page-unit scrolling
+  (`SCROLL`; positive up, negative down). A plain spoken scroll scales from
+  three to ten pages by captured audio duration; explicit modifiers win.
+  Every operation still passes through the Action Mapper and the backend's
+  SafePause gate. Wake word, TTS, and live in-page extension control remain
+  later work.
 - Offline TTS via `Piper` for confirmations (e.g. "Paused", "Switched tab"),
   toggleable — important for blind/low-vision users.
 - **Stretch**: optional local LLM (Ollama) fallback for free-form phrasing, off

@@ -43,6 +43,8 @@ python -m gesture_control.app --debug --control --cursor-point palm
 python -m gesture_control.app --debug --control --edge-margin 0.2
 python -m gesture_control.app --command "open cursor webpage"  # open that site in Google Chrome
 python -m gesture_control.app --command "next tab"        # send a fixed Chrome shortcut
+python -m gesture_control.app --command "search for hand tracking"
+python -m gesture_control.app --command "scroll down 3 pages"
 python -m gesture_control.app --voice                     # continuously listen locally (macOS)
 python -m gesture_control.app --version
 ```
@@ -104,18 +106,28 @@ without microphone capture. Open commands launch Google Chrome specifically
 (not the default browser); navigation commands control the focused app, so
 Chrome must be focused.
 
-- `open cursor webpage` / `open the cursor website` / `open cursor site`:
-  https://cursor.com
-- `open apple website` / `open the apple webpage`: https://www.apple.com
-- `open https://example.com/docs`: that exact https URL
-- `next tab` / `switch tab`; `previous tab`
-- `new tab`; `close tab`
+- `open` / `go to` / `visit` Amazon, Google, YouTube, GitHub, Cursor, or Apple
+- `open example.com` / `visit docs.example.com`: validated public domains,
+  upgraded to HTTPS
+- `open https://example.com/docs`: that exact validated HTTPS URL
+- `next tab` / `switch to next tab`; `previous tab` / `go to previous tab`
+- `new tab`; `close tab` / `close current page` / `close browser tab`
+- `reopen closed tab` / `restore closed tab`
 - `go back` / `back`; `go forward` / `forward`
-- `reload` / `refresh`
+- `reload` / `refresh` / `refresh current page`
+- `search for X` / `look up X` / `lookup X` / `google X` / `find X online`
+- `page up` / `page down`; `scroll up` / `scroll down`; small, large, and
+  explicit `1`-`10` page variants; `scroll to top` / `scroll to bottom`
 
-Unknown names (`open my bank`), `http://` URLs, and URLs with a username or
-password are rejected. Extra unknown words are rejected by the navigation
-grammar. Each backend operation checks SafePause immediately, though the
+Scroll intent amounts are signed page units: positive is up and negative is
+down. macOS converts each page to five fixed pynput notches. Holding a plain
+spoken `scroll up` or `scroll down` longer scales from 3 to at most 10 pages
+using captured audio duration; explicit size/page modifiers win.
+
+Unknown names (`open my bank`), localhost/IP/private hosts, whitespace,
+non-HTTPS schemes, and URLs with credentials are rejected. Extra unknown words
+are rejected by the navigation grammar. Each backend operation checks
+SafePause immediately, though the
 one-shot `--command` process does not start the global pause hotkey listener.
 Wake word activation, TTS, and live in-page extension click/type are not part
 of this slice.

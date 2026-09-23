@@ -32,6 +32,7 @@ class _Backend(InputBackend):
     def __init__(self) -> None:
         super().__init__()
         self.browser_actions: list[BrowserAction] = []
+        self.scroll_amounts: list[int] = []
 
     def screen_size(self) -> tuple[int, int]:
         return 100, 100
@@ -52,7 +53,7 @@ class _Backend(InputBackend):
         del text
 
     def scroll(self, amount: int) -> None:
-        del amount
+        self.scroll_amounts.append(amount)
 
     def click_element(self, target_id: str) -> None:
         del target_id
@@ -87,6 +88,22 @@ def test_voice_agent_does_not_dispatch_unknown_transcript() -> None:
     assert agent.run_once() is False
     assert backend.browser_actions == []
     assert output[-1] == "Unrecognized command."
+
+
+def test_voice_agent_passes_captured_audio_duration_to_plain_scroll() -> None:
+    """A prolonged utterance should scale plain scroll from captured duration."""
+    recorder = _Recorder()
+    recorder.audio = np.zeros(80_000, dtype=np.float32)
+    backend = _Backend()
+    agent = VoiceAgent(
+        recorder,
+        _Transcriber("scroll down"),
+        ActionMapper(backend),
+        lambda _message: None,
+    )
+
+    assert agent.run_once() is True
+    assert backend.scroll_amounts == [-5]
 
 
 def test_voice_agent_ignores_empty_transcript() -> None:

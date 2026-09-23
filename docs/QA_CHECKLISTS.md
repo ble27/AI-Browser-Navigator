@@ -59,6 +59,24 @@ recording is uploaded.
 - [ ] No wake word or TTS occurs; listening begins only after explicit
       `--voice` startup.
 
+## Voice — browser-wide vocabulary (macOS)
+
+Focus Google Chrome and keep the SafePause hotkey available.
+
+- [ ] Named aliases for Amazon, Google, YouTube, GitHub, Cursor, and Apple
+      open the expected HTTPS site; `open example.com` upgrades to HTTPS.
+- [ ] localhost, IP/private hosts, credentials, whitespace-bearing hosts,
+      `http:`, `file:`, and `javascript:` inputs open nothing.
+- [ ] `close current page`, next/previous-tab variants, `refresh current page`,
+      and `reopen closed tab` send the expected fixed Chrome shortcut.
+- [ ] `search for literal test; text` focuses Chrome's omnibox, types that
+      literal query, and submits it.
+- [ ] `page up/down`, small/large scrolls, explicit 1-10 page counts, and
+      top/bottom scroll in the documented direction.
+- [ ] Holding a plain spoken `scroll down` longer increases its bounded
+      magnitude, while `scroll down 2 pages` remains two pages.
+- [ ] Control+Option+Command+P blocks open, navigation, search, and scrolling.
+
 ## M1 — Camera + hand landmark pipeline
 
 > Model/inference correctness (camera-free) is confirmed via

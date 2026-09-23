@@ -45,7 +45,8 @@ class VoiceAgent:
         if not transcript.strip():
             return False
         self._output(f"Heard: {transcript}")
-        intent = parse_command(transcript)
+        utterance_duration_s = float(audio.size) / VOICE_SAMPLE_RATE
+        intent = parse_command(transcript, utterance_duration_s)
         if intent is None:
             self._output("Unrecognized command.")
             return False

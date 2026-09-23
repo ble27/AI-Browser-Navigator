@@ -65,8 +65,11 @@ def test_transcriber_uses_short_english_command_settings() -> None:
             "vad_filter": True,
             "condition_on_previous_text": False,
             "hotwords": (
-                "next tab switch tab previous tab new tab close tab go back "
-                "go forward reload refresh open cursor open apple"
+                "next tab switch tab previous tab current tab new tab close tab "
+                "browser tab go back go forward reload refresh reopen closed tab "
+                "open go to visit amazon google youtube github cursor apple search "
+                "for look up lookup find online scroll page up down top bottom small "
+                "little large"
             ),
         }
     ]
