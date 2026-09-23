@@ -12,6 +12,7 @@ from html.parser import HTMLParser
 from gesture_control.actions import Intent, IntentType
 
 _CLICKABLE_ROLES = frozenset({"button", "link"})
+_TYPEABLE_ROLES = frozenset({"textbox"})
 
 
 @dataclass(frozen=True, slots=True)
@@ -50,30 +51,44 @@ def index_html(html: str) -> tuple[PageElement, ...]:
 
 
 def resolve_page_command(transcript: str, elements: tuple[PageElement, ...]) -> Intent | None:
-    """Resolve a spoken click command onto a uniquely named page element.
+    """Resolve a spoken page command onto a uniquely named element.
 
-    Accepts case-insensitive transcripts of the form ``click`` + optional
-    ``on`` + an accessible name. Only ``button`` and ``link`` roles are
-    clickable; textboxes never match.
+    Supports ``click`` [``on``] ``<name>`` for buttons/links, and
+    ``type <text> into <field>`` for textboxes. Matching is case-insensitive
+    on element names; typed text casing is preserved.
 
     Args:
         transcript: Raw voice transcript text to parse.
         elements: Indexed page elements to match against.
 
     Returns:
-        An ``Intent`` with ``IntentType.CLICK_ELEMENT`` and ``target_id`` set
-        when exactly one clickable element matches the spoken name; otherwise
-        ``None``.
+        A ``CLICK_ELEMENT`` or ``TYPE_TEXT`` intent when exactly one eligible
+        element matches; otherwise ``None``.
     """
     collapsed = " ".join(transcript.split())
     if not collapsed:
         return None
 
     tokens = collapsed.split()
-    if tokens[0].casefold() != "click":
-        return None
+    verb = tokens[0].casefold()
+    if verb == "click":
+        return _resolve_click(tokens[1:], elements)
+    if verb == "type":
+        return _resolve_type(tokens[1:], elements)
+    return None
 
-    rest = tokens[1:]
+
+def _resolve_click(rest: list[str], elements: tuple[PageElement, ...]) -> Intent | None:
+    """Resolve ``click`` [``on``] ``<name>`` against clickable elements.
+
+    Args:
+        rest: Tokens after the leading ``click`` verb.
+        elements: Indexed page elements to match against.
+
+    Returns:
+        A ``CLICK_ELEMENT`` intent for a unique button/link match, else
+        ``None``.
+    """
     if rest and rest[0].casefold() == "on":
         rest = rest[1:]
     if not rest:
@@ -89,6 +104,46 @@ def resolve_page_command(transcript: str, elements: tuple[PageElement, ...]) -> 
     if len(matches) != 1:
         return None
     return Intent(IntentType.CLICK_ELEMENT, target_id=matches[0].element_id)
+
+
+def _resolve_type(rest: list[str], elements: tuple[PageElement, ...]) -> Intent | None:
+    """Resolve ``type <text> into <field>`` against textbox elements.
+
+    Args:
+        rest: Tokens after the leading ``type`` verb.
+        elements: Indexed page elements to match against.
+
+    Returns:
+        A ``TYPE_TEXT`` intent for a unique textbox match, else ``None``.
+    """
+    into_indices = [i for i, token in enumerate(rest) if token.casefold() == "into"]
+    if not into_indices:
+        return None
+
+    # Use the last "into" so typed text may itself contain the word "into".
+    into_idx = into_indices[-1]
+    typed_tokens = rest[:into_idx]
+    field_tokens = rest[into_idx + 1 :]
+    typed_text = " ".join(typed_tokens)
+    field_name = " ".join(field_tokens)
+    if not typed_text or not field_name:
+        return None
+
+    field_folded = field_name.casefold()
+    matches = [
+        element
+        for element in elements
+        # Only textboxes accept typed text; buttons/links are click targets.
+        if element.role in _TYPEABLE_ROLES and element.name.casefold() == field_folded
+    ]
+    # Ambiguous names return None: speech cannot choose which field to type into.
+    if len(matches) != 1:
+        return None
+    return Intent(
+        IntentType.TYPE_TEXT,
+        target_id=matches[0].element_id,
+        text=typed_text,
+    )
 
 
 def _normalize_name(raw: str) -> str:

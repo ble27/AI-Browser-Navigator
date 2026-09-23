@@ -15,6 +15,7 @@ class IntentType(StrEnum):
     CLICK_LEFT = "click_left"
     OPEN_URL = "open_url"
     CLICK_ELEMENT = "click_element"
+    TYPE_TEXT = "type_text"
 
 
 @dataclass(frozen=True, slots=True)
@@ -27,7 +28,8 @@ class Intent:
         y: Target cursor vertical coordinate, required for ``MOVE_CURSOR``.
         url: HTTPS URL to open, required for ``OPEN_URL``.
         target_id: Indexed page element id (``e1``, ``e2``, ...), required for
-            ``CLICK_ELEMENT``.
+            ``CLICK_ELEMENT`` and ``TYPE_TEXT``.
+        text: Literal text to type into a field, required for ``TYPE_TEXT``.
     """
 
     kind: IntentType
@@ -35,6 +37,7 @@ class Intent:
     y: int | None = None
     url: str | None = None
     target_id: str | None = None
+    text: str | None = None
 
 
 class ActionMapper:
