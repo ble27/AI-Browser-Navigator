@@ -14,6 +14,7 @@ first-class use case.
 - Full product requirements: [`docs/PRD.md`](docs/PRD.md)
 - Contributor / AI-agent onboarding: [`AGENTS.md`](AGENTS.md)
 - Manual QA checklists: [`docs/QA_CHECKLISTS.md`](docs/QA_CHECKLISTS.md)
+- Chrome page bridge setup: [`docs/CHROME_PAGE_BRIDGE.md`](docs/CHROME_PAGE_BRIDGE.md)
 - Deferred work / backlog: [`docs/BACKLOG.md`](docs/BACKLOG.md)
 - Known issues / environment gotchas: [`docs/KNOWN_ISSUES.md`](docs/KNOWN_ISSUES.md)
 
@@ -129,8 +130,10 @@ non-HTTPS schemes, and URLs with credentials are rejected. Extra unknown words
 are rejected by the navigation grammar. Each backend operation checks
 SafePause immediately, though the
 one-shot `--command` process does not start the global pause hotkey listener.
-Wake word activation, TTS, and live in-page extension click/type are not part
-of this slice.
+Wake word activation and TTS are not part of this slice. An independently
+testable Chrome page bridge is available but is not wired into the voice
+command or action-mapper path yet; see
+[`docs/CHROME_PAGE_BRIDGE.md`](docs/CHROME_PAGE_BRIDGE.md).
 
 ## Safety
 

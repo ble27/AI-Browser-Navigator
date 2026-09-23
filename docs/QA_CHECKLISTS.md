@@ -138,6 +138,15 @@ Focus Google Chrome and keep the SafePause hotkey available.
 
 ## M5 — Voice agent
 
+- [ ] Load `chrome_extension/` unpacked, install the native host with its
+      explicit extension ID, restart Chrome, and confirm `ChromePageBridge`
+      snapshots only the active top-level HTTPS tab.
+- [ ] On the HTTPS-served `chrome_extension/test_fixture.html`, click, focus,
+      type, type-and-submit, and checkbox click all work using snapshot IDs.
+- [ ] `chrome://extensions`, a `file://` fixture, and a non-active HTTPS tab
+      cannot be operated through the bridge.
+- [ ] Stopping Chrome produces an actionable disconnected/timeout error and
+      leaves no TCP listener.
 - [ ] Saying the wake word triggers listening (visual/audio cue shown).
 - [ ] Each implemented Chrome command executes end-to-end from local
       microphone audio with no network access after the model is cached.
