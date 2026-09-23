@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import Any
 
 import pytest
-from gesture_control.backends.base import InputBackend
+from gesture_control.backends.base import BrowserAction, InputBackend
 from gesture_control.backends.macos import MacOSInputBackend, _open_url_in_google_chrome
 
 
@@ -54,6 +54,14 @@ def _backend_with_recording_opener() -> tuple[MacOSInputBackend, list[str]]:
     backend._left_button = "left"
     backend._last_position = None
     return backend, opened
+
+
+def _backend_with_shortcut_recorder() -> tuple[MacOSInputBackend, list[tuple[str, ...]]]:
+    """Create a backend that records browser keyboard shortcuts."""
+    backend, _mouse = _backend_with_fake_mouse()
+    shortcuts: list[tuple[str, ...]] = []
+    backend._shortcut_sender = shortcuts.append
+    return backend, shortcuts
 
 
 def test_macos_backend_injects_input_when_not_paused() -> None:
@@ -144,6 +152,39 @@ def test_default_opener_launches_google_chrome(monkeypatch: pytest.MonkeyPatch) 
             "check": False,
         }
     ]
+
+
+@pytest.mark.parametrize(
+    ("action", "shortcut"),
+    [
+        (BrowserAction.PREVIOUS_TAB, ("cmd", "alt", "left")),
+        (BrowserAction.NEXT_TAB, ("cmd", "alt", "right")),
+        (BrowserAction.NEW_TAB, ("cmd", "t")),
+        (BrowserAction.CLOSE_TAB, ("cmd", "w")),
+        (BrowserAction.GO_BACK, ("cmd", "[")),
+        (BrowserAction.GO_FORWARD, ("cmd", "]")),
+        (BrowserAction.RELOAD_PAGE, ("cmd", "r")),
+    ],
+)
+def test_browser_navigation_sends_fixed_chrome_shortcut(
+    action: BrowserAction, shortcut: tuple[str, ...]
+) -> None:
+    """Each browser action should emit its fixed Chrome shortcut."""
+    backend, shortcuts = _backend_with_shortcut_recorder()
+
+    backend.navigate_browser(action)
+
+    assert shortcuts == [shortcut]
+
+
+def test_paused_backend_does_not_send_browser_shortcut() -> None:
+    """Safe-pause should gate browser navigation immediately."""
+    backend, shortcuts = _backend_with_shortcut_recorder()
+    backend.safe_pause.toggle()
+
+    backend.navigate_browser(BrowserAction.NEXT_TAB)
+
+    assert shortcuts == []
 
 
 class _RecordingPageBridge:

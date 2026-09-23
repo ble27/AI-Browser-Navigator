@@ -7,9 +7,18 @@ from collections.abc import Callable
 from typing import Protocol
 from urllib.parse import urlparse
 
-from gesture_control.backends.base import InputBackend, SafePause
+from gesture_control.backends.base import BrowserAction, InputBackend, SafePause
 
 _SAFE_PAUSE_HOTKEY = "<ctrl>+<alt>+<cmd>+p"
+_CHROME_SHORTCUTS: dict[BrowserAction, tuple[str, ...]] = {
+    BrowserAction.PREVIOUS_TAB: ("cmd", "alt", "left"),
+    BrowserAction.NEXT_TAB: ("cmd", "alt", "right"),
+    BrowserAction.NEW_TAB: ("cmd", "t"),
+    BrowserAction.CLOSE_TAB: ("cmd", "w"),
+    BrowserAction.GO_BACK: ("cmd", "["),
+    BrowserAction.GO_FORWARD: ("cmd", "]"),
+    BrowserAction.RELOAD_PAGE: ("cmd", "r"),
+}
 
 
 class _HotkeyListener(Protocol):
@@ -31,6 +40,25 @@ def _open_url_in_google_chrome(url: str) -> None:
     # ``open -a "Google Chrome"`` pins Chrome specifically; the default
     # ``open url`` / webbrowser path would use the user's default browser.
     subprocess.run(["open", "-a", "Google Chrome", url], check=False)
+
+
+def _send_pynput_shortcut(keys: tuple[str, ...]) -> None:
+    """Press and release one fixed Chrome shortcut through pynput.
+
+    Args:
+        keys: Ordered symbolic modifier/key names from ``_CHROME_SHORTCUTS``.
+    """
+    from pynput import keyboard
+
+    controller = keyboard.Controller()
+    resolved_keys = [
+        getattr(keyboard.Key, key) if key in {"cmd", "alt", "left", "right"} else key
+        for key in keys
+    ]
+    for key in resolved_keys:
+        controller.press(key)
+    for key in reversed(resolved_keys):
+        controller.release(key)
 
 
 class _MissingPageBridge:
@@ -84,6 +112,7 @@ class MacOSInputBackend(InputBackend):
         safe_pause: SafePause | None = None,
         opener: Callable[[str], None] | None = None,
         page_bridge: PageBridge | None = None,
+        shortcut_sender: Callable[[tuple[str, ...]], None] | None = None,
     ) -> None:
         """Create a macOS mouse controller.
 
@@ -93,6 +122,8 @@ class MacOSInputBackend(InputBackend):
                 launching Google Chrome with ``open -a``.
             page_bridge: Optional in-page click/type bridge. Defaults to a
                 bridge that refuses page actions until Chrome is connected.
+            shortcut_sender: Optional keyboard shortcut injector used by
+                :meth:`navigate_browser`. Defaults to pynput.
         """
         super().__init__(safe_pause=safe_pause)
         from pynput import mouse
@@ -102,6 +133,9 @@ class MacOSInputBackend(InputBackend):
         self._last_position: tuple[int, int] | None = None
         self._opener = opener if opener is not None else _open_url_in_google_chrome
         self._page_bridge = page_bridge if page_bridge is not None else _MissingPageBridge()
+        self._shortcut_sender = (
+            shortcut_sender if shortcut_sender is not None else _send_pynput_shortcut
+        )
 
     def screen_size(self) -> tuple[int, int]:
         """Return the primary screen dimensions in pixels."""
@@ -145,6 +179,16 @@ class MacOSInputBackend(InputBackend):
         if parsed.username is not None or parsed.password is not None:
             return
         self._opener(url)
+
+    def navigate_browser(self, action: BrowserAction) -> None:
+        """Send a fixed Google Chrome navigation shortcut when input is enabled.
+
+        Args:
+            action: Typed browser navigation operation.
+        """
+        if self.safe_pause.is_paused:
+            return
+        self._shortcut_sender(_CHROME_SHORTCUTS[action])
 
     def click_element(self, target_id: str) -> None:
         """Click an indexed page element when the safe-pause gate is open.
