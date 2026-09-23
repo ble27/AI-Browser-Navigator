@@ -29,6 +29,7 @@ class _FakeModel:
         beam_size: int,
         vad_filter: bool,
         condition_on_previous_text: bool,
+        hotwords: str,
     ) -> tuple[Iterable[_FakeSegment], object]:
         self.calls.append(
             {
@@ -37,6 +38,7 @@ class _FakeModel:
                 "beam_size": beam_size,
                 "vad_filter": vad_filter,
                 "condition_on_previous_text": condition_on_previous_text,
+                "hotwords": hotwords,
             }
         )
         return [_FakeSegment("  Next "), _FakeSegment(" tab  ")], object()
@@ -62,6 +64,10 @@ def test_transcriber_uses_short_english_command_settings() -> None:
             "beam_size": 1,
             "vad_filter": True,
             "condition_on_previous_text": False,
+            "hotwords": (
+                "next tab switch tab previous tab new tab close tab go back "
+                "go forward reload refresh open cursor open apple"
+            ),
         }
     ]
 
@@ -76,8 +82,9 @@ def test_transcriber_materializes_segment_iterator() -> None:
             beam_size: int,
             vad_filter: bool,
             condition_on_previous_text: bool,
+            hotwords: str,
         ) -> tuple[Iterable[_FakeSegment], object]:
-            del audio, language, beam_size, vad_filter, condition_on_previous_text
+            del audio, language, beam_size, vad_filter, condition_on_previous_text, hotwords
             return iter([_FakeSegment("reload")]), object()
 
     transcriber = FasterWhisperTranscriber(
@@ -122,8 +129,9 @@ def test_empty_segments_produce_an_empty_transcript() -> None:
             beam_size: int,
             vad_filter: bool,
             condition_on_previous_text: bool,
+            hotwords: str,
         ) -> tuple[Iterable[_FakeSegment], object]:
-            del audio, language, beam_size, vad_filter, condition_on_previous_text
+            del audio, language, beam_size, vad_filter, condition_on_previous_text, hotwords
             return iter(()), object()
 
     transcriber = FasterWhisperTranscriber(
@@ -167,8 +175,9 @@ def test_transcription_failure_is_wrapped_with_actionable_context() -> None:
             beam_size: int,
             vad_filter: bool,
             condition_on_previous_text: bool,
+            hotwords: str,
         ) -> tuple[Iterable[_FakeSegment], object]:
-            del audio, language, beam_size, vad_filter, condition_on_previous_text
+            del audio, language, beam_size, vad_filter, condition_on_previous_text, hotwords
             raise OSError("corrupt model file")
 
     transcriber = FasterWhisperTranscriber(

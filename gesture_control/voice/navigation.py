@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import re
+
 from gesture_control.actions import Intent, IntentType
 
 _NAVIGATION_PHRASES: dict[str, IntentType] = {
@@ -17,6 +19,14 @@ _NAVIGATION_PHRASES: dict[str, IntentType] = {
     "reload": IntentType.RELOAD_PAGE,
     "refresh": IntentType.RELOAD_PAGE,
 }
+_OBSERVED_ASR_ALIASES: dict[str, str] = {
+    "next lets tap": "next tab",
+    "next tap": "next tab",
+    "next time": "next tab",
+    "open next time": "next tab",
+    "close tap": "close tab",
+}
+_APOSTROPHES = str.maketrans("", "", "'’")
 
 
 def parse_browser_navigation_command(transcript: str) -> Intent | None:
@@ -32,7 +42,9 @@ def parse_browser_navigation_command(transcript: str) -> Intent | None:
     Returns:
         The matching browser navigation intent, or ``None``.
     """
-    normalized = " ".join(transcript.split()).casefold()
+    words_only = re.sub(r"[^\w\s]", " ", transcript.casefold().translate(_APOSTROPHES))
+    normalized = " ".join(words_only.split())
+    normalized = _OBSERVED_ASR_ALIASES.get(normalized, normalized)
     intent_type = _NAVIGATION_PHRASES.get(normalized)
     if intent_type is None:
         return None

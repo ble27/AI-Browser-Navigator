@@ -35,7 +35,7 @@ def parse_browser_command(transcript: str) -> Intent | None:
         return None
 
     tokens = collapsed.split()
-    if tokens[0].casefold() != "open":
+    if tokens[0].strip(".,!?").casefold() != "open":
         return None
 
     rest = tokens[1:]
@@ -56,7 +56,9 @@ def parse_browser_command(transcript: str) -> Intent | None:
     if "://" in candidate_folded or candidate_folded.startswith("javascript:"):
         return None
 
-    site_tokens = list(rest)
+    # Whisper commonly appends sentence punctuation to a spoken site alias.
+    # Strip only for alias matching; URL validation above keeps URL syntax intact.
+    site_tokens = candidate.rstrip(".,!?").split()
     if site_tokens and site_tokens[-1].casefold() in _TRAILING_SITE_WORDS:
         site_tokens = site_tokens[:-1]
     if len(site_tokens) != 1:

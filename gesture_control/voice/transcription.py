@@ -9,6 +9,10 @@ import numpy as np
 from numpy.typing import NDArray
 
 VOICE_SAMPLE_RATE = 16_000
+_COMMAND_HOTWORDS = (
+    "next tab switch tab previous tab new tab close tab go back "
+    "go forward reload refresh open cursor open apple"
+)
 
 
 class Transcriber(Protocol):
@@ -35,6 +39,7 @@ class _WhisperModel(Protocol):
         beam_size: int,
         vad_filter: bool,
         condition_on_previous_text: bool,
+        hotwords: str,
     ) -> tuple[Iterable[_Segment], object]:
         """Transcribe one in-memory audio array."""
 
@@ -107,6 +112,7 @@ class FasterWhisperTranscriber:
                 beam_size=1,
                 vad_filter=True,
                 condition_on_previous_text=False,
+                hotwords=_COMMAND_HOTWORDS,
             )
             materialized = list(segments)
         except Exception as exc:

@@ -88,3 +88,24 @@ def test_combined_parser_keeps_open_url_commands() -> None:
 def test_combined_parser_accepts_navigation_commands() -> None:
     """The combined parser should expose browser navigation grammar."""
     assert parse_command("refresh") == Intent(IntentType.RELOAD_PAGE)
+
+
+@pytest.mark.parametrize(
+    "transcript",
+    [
+        "Next, let's tap.",
+        "next time.",
+        "next tap.",
+        "Open next time.",
+    ],
+)
+def test_observed_whisper_next_tab_variants_are_narrowly_normalized(
+    transcript: str,
+) -> None:
+    """Known tiny.en substitutions should still select the next tab."""
+    assert parse_command(transcript) == Intent(IntentType.NEXT_TAB)
+
+
+def test_observed_whisper_close_tab_variant_is_normalized() -> None:
+    """The common tab-to-tap substitution should preserve close-tab intent."""
+    assert parse_command("close tap.") == Intent(IntentType.CLOSE_TAB)

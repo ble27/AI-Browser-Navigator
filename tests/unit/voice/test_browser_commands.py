@@ -94,6 +94,13 @@ def test_open_cursor_site_resolves_to_cursor_site() -> None:
     assert intent == Intent(IntentType.OPEN_URL, url="https://cursor.com")
 
 
+def test_terminal_whisper_punctuation_is_ignored_for_site_aliases() -> None:
+    """Sentence punctuation should not become part of a spoken site name."""
+    assert parse_browser_command("Open cursor.") == Intent(
+        IntentType.OPEN_URL, url="https://cursor.com"
+    )
+
+
 def test_https_url_with_userinfo_is_rejected() -> None:
     """HTTPS URLs that embed credentials must not become an OPEN_URL intent."""
     assert parse_browser_command("open https://user:pass@example.com") is None
