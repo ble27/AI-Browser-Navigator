@@ -17,9 +17,10 @@ Tracked here instead of inline `TODO`s so `main` stays clean. Move items out
 
 ## Later voice / browser milestone
 
-- In-page control inside a website (click, type, or navigate within the page)
-  via a Chrome extension, Native Messaging, or the DevTools Protocol. Opening
-  a named site in Google Chrome is in scope now; driving the page is not.
+- Live in-page actions in the user's already-open Chrome (click, type) via a
+  first-party extension and Native Messaging. The offline name resolver is
+  landing first. Do not attach the DevTools Protocol to the default Chrome
+  profile. See `docs/research/voice-html-navigation.md`.
 - Windows and Linux adapters for `InputBackend.open_url` (Chrome binary + URL).
   macOS uses `open -a "Google Chrome"`.
 - Wake word (`openWakeWord`), offline speech-to-text, and confirmation TTS.
