@@ -45,6 +45,10 @@ class Camera:
             newest frame. Landmark inference is often slower than the camera,
             and OpenCV's capture queue would otherwise hand detection an image
             that is already tens or hundreds of milliseconds old.
+        stabilize_exposure: When ``True``, best-effort disable auto-exposure
+            and auto-focus. Brightness hunting mid-gesture shifts landmark
+            positions and reads as cursor jitter; drivers that ignore these
+            requests keep their defaults.
     """
 
     def __init__(
@@ -53,12 +57,14 @@ class Camera:
         width: int | None = None,
         height: int | None = None,
         drop_stale_frames: bool = False,
+        stabilize_exposure: bool = False,
     ) -> None:
         """Store the requested camera configuration without opening the device yet."""
         self._device_index = device_index
         self._width = width
         self._height = height
         self._drop_stale_frames = drop_stale_frames
+        self._stabilize_exposure = stabilize_exposure
         self._capture: cv2.VideoCapture | None = None
         self._consecutive_black_frames = 0
         self._frame_lock = threading.Lock()
@@ -97,6 +103,8 @@ class Camera:
         capture.set(cv2.CAP_PROP_BUFFERSIZE, 1)
         if self._drop_stale_frames:
             capture.set(cv2.CAP_PROP_FPS, _REQUESTED_CAPTURE_FPS)
+        if self._stabilize_exposure:
+            _request_stable_exposure(capture)
         self._capture = capture
         if self._drop_stale_frames:
             self._stop_reading.clear()
@@ -234,3 +242,16 @@ def _open_capture(device_index: int) -> cv2.VideoCapture:
             return capture
         capture.release()
     return cv2.VideoCapture(device_index)
+
+
+def _request_stable_exposure(capture: cv2.VideoCapture) -> None:
+    """Best-effort lock of exposure and focus for steadier landmarks.
+
+    OpenCV property semantics differ by backend: ``CAP_PROP_AUTO_EXPOSURE`` is
+    ``0.25`` for manual on some V4L2 devices and ``0``/``1`` elsewhere, so both
+    common "manual" encodings are attempted. Failures are ignored — a camera
+    that rejects the request simply keeps auto mode.
+    """
+    capture.set(cv2.CAP_PROP_AUTOFOCUS, 0)
+    capture.set(cv2.CAP_PROP_AUTO_EXPOSURE, 0.25)
+    capture.set(cv2.CAP_PROP_AUTO_EXPOSURE, 0)

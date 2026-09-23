@@ -141,6 +141,10 @@ class MacOSInputBackend(InputBackend):
         """Return the primary screen dimensions in pixels."""
         import pyautogui
 
+        # Moves go through pynput, but pyautogui's default 0.1 s pause would
+        # still delay any future path that touches it (and screen_size itself
+        # is cheap either way once PAUSE is zero).
+        pyautogui.PAUSE = 0
         size = pyautogui.size()
         return size.width, size.height
 

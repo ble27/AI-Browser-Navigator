@@ -38,3 +38,12 @@ Tracked here instead of inline `TODO`s so `main` stays clean. Move items out
   browser vs. a presentation app).
 - Cloud/optional telemetry for crash reporting — must remain strictly opt-in
   given the project's offline/privacy commitment.
+- Relative (trackpad-style) cursor mapping as an alternative to absolute
+  camera-to-screen mapping — may reduce overshoot for large displays once
+  absolute tip tracking + approach-freeze is live-verified.
+- Skip-frame MediaPipe inference with optical-flow / Kalman interpolation
+  between detections — only worth it if live FPS stays well below camera rate
+  after the 320×240 + async capture path is confirmed.
+- MediaPipe GPU/Metal delegate for HandLandmarker on Apple Silicon — blocked
+  until a mediapipe build exists that does not abort at graph construction
+  (see `docs/KNOWN_ISSUES.md`); CPU remains the supported path.

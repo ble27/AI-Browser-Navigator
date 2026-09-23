@@ -157,6 +157,19 @@ def test_drop_stale_frames_returns_the_newest_captured_frame(
     assert underlying.released is True
 
 
+def test_stabilize_exposure_requests_manual_focus_and_exposure(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Auto-exposure hunting mid-gesture shifts landmarks and reads as jitter."""
+    monkeypatch.setattr(camera_module.cv2, "VideoCapture", _FakeVideoCapture)
+
+    with Camera(device_index=0, stabilize_exposure=True) as camera:
+        underlying = camera._capture
+        assert isinstance(underlying, _FakeVideoCapture)
+        assert underlying.props[cv2.CAP_PROP_AUTOFOCUS] == 0
+        assert underlying.props[cv2.CAP_PROP_AUTO_EXPOSURE] == 0
+
+
 def _wait_for_pixel(camera: Camera, pixel_value: int) -> np.ndarray:
     """Read until the reader has published ``pixel_value`` or the device ends."""
     deadline = time.monotonic() + 2.0
