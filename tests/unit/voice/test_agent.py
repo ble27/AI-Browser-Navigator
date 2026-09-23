@@ -68,15 +68,12 @@ def test_voice_agent_dispatches_recognized_transcript() -> None:
     assert output == ["Heard: next tab", "Recognized: next_tab"]
 
 
-@pytest.mark.parametrize("transcript", ["", "unknown words"])
-def test_voice_agent_does_not_dispatch_unrecognized_transcript(
-    transcript: str,
-) -> None:
+def test_voice_agent_does_not_dispatch_unknown_transcript() -> None:
     backend = _Backend()
     output: list[str] = []
     agent = VoiceAgent(
         _Recorder(),
-        _Transcriber(transcript),
+        _Transcriber("unknown words"),
         ActionMapper(backend),
         output.append,
     )
@@ -84,3 +81,55 @@ def test_voice_agent_does_not_dispatch_unrecognized_transcript(
     assert agent.run_once() is False
     assert backend.browser_actions == []
     assert output[-1] == "Unrecognized command."
+
+
+def test_voice_agent_ignores_empty_transcript() -> None:
+    backend = _Backend()
+    output: list[str] = []
+    agent = VoiceAgent(
+        _Recorder(),
+        _Transcriber("   "),
+        ActionMapper(backend),
+        output.append,
+    )
+
+    assert agent.run_once() is False
+    assert backend.browser_actions == []
+    assert output == []
+
+
+def test_voice_loop_handles_multiple_utterances_before_interrupt() -> None:
+    class _SequenceRecorder:
+        def __init__(self) -> None:
+            self.calls = 0
+
+        def record_utterance(self) -> NDArray[np.float32]:
+            if self.calls == 2:
+                raise KeyboardInterrupt
+            self.calls += 1
+            return np.zeros(1600, dtype=np.float32)
+
+    class _SequenceTranscriber:
+        def __init__(self) -> None:
+            self._transcripts = iter(("new tab", "reload"))
+
+        def transcribe(
+            self, audio: NDArray[np.float32], sample_rate: int = 16_000
+        ) -> str:
+            del audio, sample_rate
+            return next(self._transcripts)
+
+    recorder = _SequenceRecorder()
+    backend = _Backend()
+    agent = VoiceAgent(
+        recorder,
+        _SequenceTranscriber(),
+        ActionMapper(backend),
+        lambda _message: None,
+    )
+
+    with pytest.raises(KeyboardInterrupt):
+        agent.run_forever()
+
+    assert recorder.calls == 2
+    assert backend.browser_actions == [BrowserAction.NEW_TAB, BrowserAction.RELOAD_PAGE]
