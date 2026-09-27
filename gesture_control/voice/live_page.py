@@ -75,6 +75,13 @@ class LivePageCommandResolver:
             self._cached = snapshot
             self._cached_at = time.monotonic()
 
+    def current_url(self) -> str | None:
+        """Return the active tab URL, or ``None`` when the bridge is down."""
+        try:
+            return self._take_snapshot().url
+        except BridgeError:
+            return None
+
     def resolve(self, transcript: str) -> Intent | None:
         """Resolve one page-directed phrase.
 
