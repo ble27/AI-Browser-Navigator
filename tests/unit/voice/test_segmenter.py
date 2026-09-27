@@ -25,7 +25,8 @@ def test_final_commits_single_clause() -> None:
 def test_partial_stable_and_commits_before_final() -> None:
     segmenter = DeterministicClauseSegmenter()
     assert segmenter.feed(_partial(0, "open amazon and", 0.1)) == []
-    committed = segmenter.feed(_partial(0, "open amazon and scr", 0.2))
+    assert segmenter.feed(_partial(0, "open amazon and scr", 0.2)) == []
+    committed = segmenter.feed(_partial(0, "open amazon and scr", 0.3))
     assert len(committed) == 1
     assert committed[0].text == "open amazon"
     assert committed[0].final is False
@@ -34,10 +35,20 @@ def test_partial_stable_and_commits_before_final() -> None:
 def test_revision_resets_stability() -> None:
     segmenter = DeterministicClauseSegmenter()
     segmenter.feed(_partial(0, "open amazing and", 0.1))
-    segmenter.feed(_partial(0, "open amazon and", 0.2))
-    committed = segmenter.feed(_partial(0, "open amazon and", 0.3))
+    segmenter.feed(_partial(0, "open amazon and x", 0.2))
+    committed = segmenter.feed(_partial(0, "open amazon and x", 0.3))
     assert len(committed) == 1
     assert committed[0].text == "open amazon"
+
+
+def test_false_and_does_not_lock_wrong_clause() -> None:
+    """ASR false 'and' must not commit before the final revision."""
+    segmenter = DeterministicClauseSegmenter()
+    assert segmenter.feed(_partial(0, "Open terms and", 0.1)) == []
+    assert segmenter.feed(_partial(0, "Open terms and", 0.2)) == []
+    assert segmenter.feed(_partial(0, "Open terminal", 0.3)) == []
+    clauses = segmenter.feed(_final(0, "Open terminal"))
+    assert [clause.text for clause in clauses] == ["Open terminal"]
 
 
 def test_no_duplicate_line_index() -> None:

@@ -74,7 +74,13 @@ class DeterministicClauseSegmenter:
             return self._commit_final(event.line_id, text)
 
         partial_text = text if text.endswith(" ") else f"{text} "
-        complete, _tail = _split_complete_clauses(partial_text)
+        complete, tail = _split_complete_clauses(partial_text)
+        # Require the next clause to have started before committing from a
+        # partial. Otherwise a mid-utterance false "and" (e.g. "Open terms and"
+        # while revising toward "Open terminal") locks the wrong clause and the
+        # final line is skipped as a duplicate index.
+        if not tail:
+            return []
         emitted: list[Clause] = []
         for index, clause_text in enumerate(complete):
             key = (event.line_id, index)
