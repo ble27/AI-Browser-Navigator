@@ -4,7 +4,8 @@ from __future__ import annotations
 
 import pytest
 from gesture_control.actions import ActionMapper, Intent, IntentType
-from gesture_control.backends.base import BrowserAction, InputBackend
+from gesture_control.backends.base import BrowserAction, InputBackend, LaunchableApp, PressableKey
+from gesture_control.voice.stream_contracts import MAX_TYPED_CHARS
 
 
 class _FakeBackend(InputBackend):
@@ -22,6 +23,9 @@ class _FakeBackend(InputBackend):
         self.focused_elements: list[str] = []
         self.typed: list[tuple[str, str]] = []
         self.submitted: list[tuple[str, str]] = []
+        self.opened_apps: list[LaunchableApp] = []
+        self.focused_text: list[str] = []
+        self.pressed_keys: list[PressableKey] = []
 
     def screen_size(self) -> tuple[int, int]:
         return 100, 100
@@ -65,6 +69,18 @@ class _FakeBackend(InputBackend):
     def submit_text(self, target_id: str, text: str) -> None:
         if not self.safe_pause.is_paused:
             self.submitted.append((target_id, text))
+
+    def open_app(self, app: LaunchableApp) -> None:
+        if not self.safe_pause.is_paused:
+            self.opened_apps.append(app)
+
+    def type_focused(self, text: str) -> None:
+        if not self.safe_pause.is_paused:
+            self.focused_text.append(text)
+
+    def press_key(self, key: PressableKey) -> None:
+        if not self.safe_pause.is_paused:
+            self.pressed_keys.append(key)
 
 
 def test_action_mapper_dispatches_cursor_move_and_click() -> None:
@@ -249,3 +265,48 @@ def test_safe_pause_blocks_page_actions() -> None:
 
     assert backend.clicked_elements == []
     assert backend.typed == []
+
+
+def test_action_mapper_opens_launchable_app() -> None:
+    backend = _FakeBackend()
+    ActionMapper(backend).dispatch(Intent(IntentType.OPEN_APP, app=LaunchableApp.NOTES))
+    assert backend.opened_apps == [LaunchableApp.NOTES]
+
+
+def test_open_app_intent_requires_app() -> None:
+    backend = _FakeBackend()
+    with pytest.raises(ValueError, match="app"):
+        ActionMapper(backend).dispatch(Intent(IntentType.OPEN_APP))
+    assert backend.opened_apps == []
+
+
+def test_action_mapper_types_into_focus() -> None:
+    backend = _FakeBackend()
+    ActionMapper(backend).dispatch(Intent(IntentType.TYPE_FOCUSED, text="buy milk"))
+    assert backend.focused_text == ["buy milk"]
+
+
+def test_type_focused_rejects_empty_long_and_control_text() -> None:
+    backend = _FakeBackend()
+    mapper = ActionMapper(backend)
+    with pytest.raises(ValueError, match="non-empty"):
+        mapper.dispatch(Intent(IntentType.TYPE_FOCUSED, text=""))
+    too_long = "a" * (MAX_TYPED_CHARS + 1)
+    with pytest.raises(ValueError, match="exceeds"):
+        mapper.dispatch(Intent(IntentType.TYPE_FOCUSED, text=too_long))
+    with pytest.raises(ValueError, match="control"):
+        mapper.dispatch(Intent(IntentType.TYPE_FOCUSED, text="hello\x00"))
+    assert backend.focused_text == []
+
+
+def test_action_mapper_presses_key() -> None:
+    backend = _FakeBackend()
+    ActionMapper(backend).dispatch(Intent(IntentType.PRESS_KEY, key=PressableKey.ENTER))
+    assert backend.pressed_keys == [PressableKey.ENTER]
+
+
+def test_press_key_intent_requires_key() -> None:
+    backend = _FakeBackend()
+    with pytest.raises(ValueError, match="key"):
+        ActionMapper(backend).dispatch(Intent(IntentType.PRESS_KEY))
+    assert backend.pressed_keys == []

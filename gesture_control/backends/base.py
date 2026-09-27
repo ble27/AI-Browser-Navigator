@@ -7,6 +7,42 @@ from enum import StrEnum
 from threading import Lock
 
 
+class LaunchableApp(StrEnum):
+    """macOS applications the voice agent may open by enum (no free-form names)."""
+
+    NOTES = "Notes"
+    TEXTEDIT = "TextEdit"
+    CALENDAR = "Calendar"
+    REMINDERS = "Reminders"
+    MAIL = "Mail"
+    MESSAGES = "Messages"
+    SAFARI = "Safari"
+    CHROME = "Google Chrome"
+    FINDER = "Finder"
+    TERMINAL = "Terminal"
+    SETTINGS = "System Settings"
+    MUSIC = "Music"
+    MAPS = "Maps"
+    PHOTOS = "Photos"
+    SLACK = "Slack"
+    SPOTIFY = "Spotify"
+    VSCODE = "Visual Studio Code"
+    CURSOR = "Cursor"
+    DISCORD = "Discord"
+    ZOOM = "zoom.us"
+
+
+class PressableKey(StrEnum):
+    """Keyboard chords the voice agent may press by enum."""
+
+    ENTER = "enter"
+    TAB = "tab"
+    ESCAPE = "escape"
+    BACKSPACE = "backspace"
+    NEW_ITEM = "cmd+n"
+    SELECT_ALL = "cmd+a"
+
+
 class BrowserAction(StrEnum):
     """Browser-level navigation operations supported by input backends."""
 
@@ -151,3 +187,27 @@ class InputBackend(ABC):
             text: Literal text to enter and submit.
         """
         raise NotImplementedError("This backend does not support submitting page text.")
+
+    def open_app(self, app: LaunchableApp) -> None:
+        """Activate a native application unless input injection is paused.
+
+        Args:
+            app: Enum-identified application to open or focus.
+        """
+        raise NotImplementedError("This backend does not support opening applications.")
+
+    def type_focused(self, text: str) -> None:
+        """Type into the focused field unless input injection is paused.
+
+        Args:
+            text: Literal characters to insert into the focused control.
+        """
+        raise NotImplementedError("This backend does not support typing into the focus.")
+
+    def press_key(self, key: PressableKey) -> None:
+        """Press a named key chord unless input injection is paused.
+
+        Args:
+            key: Enum-identified key or shortcut to send.
+        """
+        raise NotImplementedError("This backend does not support key presses.")

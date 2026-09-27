@@ -5,7 +5,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from enum import StrEnum
 
-from gesture_control.backends.base import BrowserAction, InputBackend
+from gesture_control.backends.base import BrowserAction, InputBackend, LaunchableApp, PressableKey
+from gesture_control.voice.stream_contracts import MAX_TYPED_CHARS
 
 
 class IntentType(StrEnum):
@@ -28,6 +29,9 @@ class IntentType(StrEnum):
     FOCUS_ELEMENT = "focus_element"
     TYPE_TEXT = "type_text"
     SUBMIT_TEXT = "submit_text"
+    OPEN_APP = "open_app"
+    TYPE_FOCUSED = "type_focused"
+    PRESS_KEY = "press_key"
 
 
 _BROWSER_ACTIONS: dict[IntentType, BrowserAction] = {
@@ -57,6 +61,8 @@ class Intent:
             For ``SEARCH_WEB``, this is the literal omnibox query.
         amount: Signed page count for ``SCROLL``. Positive values scroll up
             and negative values scroll down.
+        app: Application to open for ``OPEN_APP``.
+        key: Key chord for ``PRESS_KEY``.
     """
 
     kind: IntentType
@@ -66,6 +72,8 @@ class Intent:
     target_id: str | None = None
     text: str | None = None
     amount: int | None = None
+    app: LaunchableApp | None = None
+    key: PressableKey | None = None
 
 
 class ActionMapper:
@@ -127,3 +135,19 @@ class ActionMapper:
             if not intent.target_id or intent.text is None:
                 raise ValueError("SUBMIT_TEXT intents require a target_id and text.")
             self._backend.submit_text(intent.target_id, intent.text)
+        elif intent.kind is IntentType.OPEN_APP:
+            if intent.app is None:
+                raise ValueError("OPEN_APP intents require an app.")
+            self._backend.open_app(intent.app)
+        elif intent.kind is IntentType.TYPE_FOCUSED:
+            if intent.text is None or not intent.text:
+                raise ValueError("TYPE_FOCUSED intents require non-empty text.")
+            if len(intent.text) > MAX_TYPED_CHARS:
+                raise ValueError(f"TYPE_FOCUSED text exceeds {MAX_TYPED_CHARS} characters.")
+            if any(ord(ch) < 32 or ord(ch) == 127 for ch in intent.text):
+                raise ValueError("TYPE_FOCUSED text must not contain control characters.")
+            self._backend.type_focused(intent.text)
+        elif intent.kind is IntentType.PRESS_KEY:
+            if intent.key is None:
+                raise ValueError("PRESS_KEY intents require a key.")
+            self._backend.press_key(intent.key)

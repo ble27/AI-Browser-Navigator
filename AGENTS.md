@@ -116,3 +116,37 @@ docs/
 Any code path that can move the cursor or inject input MUST respect the global
 safe-pause hotkey and the "fist" pause gesture. Never add an input-injection
 code path that bypasses `InputBackend`'s pause check.
+
+## Streaming voice agent (M5) — frozen contracts
+
+Offline streaming voice (`--voice-mode streaming`, planned) is built in phases.
+See [`docs/STREAMING_VOICE_HANDOFF.md`](docs/STREAMING_VOICE_HANDOFF.md) for
+status and milestone order.
+
+**Read-only without user approval:**
+
+- `gesture_control/voice/stream_contracts.py`
+- `gesture_control/voice/asr_repair.repair_command_text` (signature and semantics)
+- New `IntentType` / `Intent` fields and dispatch rules in `actions/mapper.py`
+- `LaunchableApp`, `PressableKey`, and desktop method signatures in
+  `backends/base.py`
+- `tests/unit/voice/test_contracts.py` and expected values in
+  `tests/unit/voice/test_streaming_golden.py` (only removing `@pytest.mark.xfail`
+  is allowed, and only in Phase 3 integration)
+
+**Phase gates:** Phase 2 parallel tracks start only after Phase 1 contracts are
+committed. Phase 3 waits for all four Phase 2 tracks. Do not edit the utterance
+pipeline rollback path (`voice/agent.py`, `audio.py`, `transcription.py`,
+`page.py`, `navigation.py`, `scroll.py`, `search.py`, `browser/bridge.py`).
+
+**Parallel track file ownership (Phase 2):**
+
+| Track | Owns |
+|-------|------|
+| STT | `voice/moonshine_stt.py`, `test_moonshine_stt.py`, voice extra in `pyproject.toml` |
+| EXEC | `voice/executor.py`, `test_executor.py`, `live_page.current_url()` |
+| SEG | `voice/segmenter.py`, `test_segmenter.py` |
+| VOCAB | `voice/desktop.py`, `test_desktop_commands.py`, `browser.py`, `backends/macos.py` |
+
+Tracks test against port fakes only; the coordinator runs `scripts/check.sh` and
+commits one track at a time.
