@@ -16,6 +16,10 @@ from gesture_control.voice.navigation import parse_browser_navigation_command
         ("previous tab", IntentType.PREVIOUS_TAB),
         ("new tab", IntentType.NEW_TAB),
         ("close tab", IntentType.CLOSE_TAB),
+        ("next browser", IntentType.NEXT_TAB),
+        ("previous browser", IntentType.PREVIOUS_TAB),
+        ("close browser", IntentType.CLOSE_TAB),
+        ("next browser tab", IntentType.NEXT_TAB),
         ("go back", IntentType.GO_BACK),
         ("back", IntentType.GO_BACK),
         ("go forward", IntentType.GO_FORWARD),
@@ -105,6 +109,24 @@ def test_observed_whisper_next_tab_variants_are_narrowly_normalized(
 ) -> None:
     """Known tiny.en substitutions should still select the next tab."""
     assert parse_command(transcript) == Intent(IntentType.NEXT_TAB)
+
+
+@pytest.mark.parametrize(
+    ("transcript", "kind"),
+    [
+        ("next browser time", IntentType.NEXT_TAB),
+        ("next browser tap", IntentType.NEXT_TAB),
+        ("previous browser", IntentType.PREVIOUS_TAB),
+        ("closed browser", IntentType.CLOSE_TAB),
+        ("close browser tap", IntentType.CLOSE_TAB),
+    ],
+)
+def test_browser_word_selects_the_matching_tab_command(
+    transcript: str,
+    kind: IntentType,
+) -> None:
+    """Short browser phrases should not fall through to a page click."""
+    assert parse_command(transcript) == Intent(kind)
 
 
 def test_observed_whisper_close_tab_variant_is_normalized() -> None:

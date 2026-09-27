@@ -62,10 +62,14 @@ def test_session_host_persists_across_lines_for_click() -> None:
 def test_browser_control_does_not_inherit_session_host_readiness() -> None:
     planner = DeterministicClausePlanner()
     planner.plan(_clause("open amazon", line_id=0))
-    steps = planner.plan(_clause("next tab", line_id=1))
+    steps = planner.plan(_clause("next browser", line_id=1))
     assert isinstance(steps[0], ResolvedStep)
     assert steps[0].intent.kind is IntentType.NEXT_TAB
     assert steps[0].ready is None
+    close_steps = planner.plan(_clause("close browser", line_id=2))
+    assert isinstance(close_steps[0], ResolvedStep)
+    assert close_steps[0].intent.kind is IntentType.CLOSE_TAB
+    assert close_steps[0].ready is None
 
 
 def test_ask_macro_emits_three_steps() -> None:
@@ -79,8 +83,23 @@ def test_ask_macro_emits_three_steps() -> None:
 
 
 def test_type_on_browser_is_page_step_with_fallback() -> None:
-    steps = DeterministicClausePlanner().plan(_clause("type hello"))
+    planner = DeterministicClausePlanner()
+    planner.plan(_clause("open amazon", line_id=0))
+    steps = planner.plan(_clause("type hello", line_id=1))
     assert len(steps) == 1
     assert isinstance(steps[0], PageStep)
     assert steps[0].fallback is not None
     assert steps[0].fallback.kind is IntentType.TYPE_FOCUSED
+    assert steps[0].ready is None
+
+
+def test_type_into_input_does_not_wait_on_the_open_site() -> None:
+    planner = DeterministicClausePlanner()
+    planner.plan(_clause("open gemini", line_id=0))
+    steps = planner.plan(_clause("type what is your name into input", line_id=1))
+    assert len(steps) == 1
+    assert isinstance(steps[0], PageStep)
+    assert steps[0].ready is None
+    assert steps[0].fallback is not None
+    assert steps[0].fallback.kind is IntentType.TYPE_FOCUSED
+    assert steps[0].fallback.text == "what is your name"

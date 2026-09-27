@@ -124,8 +124,8 @@ Chrome must be focused.
 - `open example.com` / `visit docs.example.com`: validated public domains,
   upgraded to HTTPS
 - `open https://example.com/docs`: that exact validated HTTPS URL
-- `next tab` / `switch to next tab`; `previous tab` / `go to previous tab`
-- `new tab`; `close tab` / `close current page` / `close browser tab`
+- `next browser` / `next tab`; `previous browser` / `previous tab`
+- `close browser` / `close tab` / `close current page`
 - `reopen closed tab` / `restore closed tab`
 - `go back` / `back`; `go forward` / `forward`
 - `reload` / `refresh` / `refresh current page`
