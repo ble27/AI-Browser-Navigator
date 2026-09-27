@@ -131,6 +131,16 @@ class QueuedStepExecutor:
                 StepReport(step=step, outcome=StepOutcome.CANCELLED, detail="user cancel"),
             )
             return StepOutcome.CANCELLED
+        if wait_result == "paused":
+            self._report(
+                StepReport(
+                    step=step,
+                    outcome=StepOutcome.SKIPPED_PAUSED,
+                    detail="safe pause during readiness",
+                ),
+            )
+            self._drain_cancelled(detail="safe pause")
+            return StepOutcome.SKIPPED_PAUSED
         if not wait_result:
             self._report(
                 StepReport(step=step, outcome=StepOutcome.FAILED, detail="readiness timeout"),
@@ -161,6 +171,16 @@ class QueuedStepExecutor:
                 StepReport(step=step, outcome=StepOutcome.CANCELLED, detail="user cancel"),
             )
             return StepOutcome.CANCELLED
+        if wait_result == "paused":
+            self._report(
+                StepReport(
+                    step=step,
+                    outcome=StepOutcome.SKIPPED_PAUSED,
+                    detail="safe pause during readiness",
+                ),
+            )
+            self._drain_cancelled(detail="safe pause")
+            return StepOutcome.SKIPPED_PAUSED
         if not wait_result:
             self._report(
                 StepReport(step=step, outcome=StepOutcome.FAILED, detail="readiness timeout"),
@@ -203,17 +223,29 @@ class QueuedStepExecutor:
         if ready.host is None and ready.app is None:
             return True
         deadline = self._clock() + ready.max_wait_s
+        null_host_streak = 0
         while self._clock() < deadline:
             if self._safe_pause.is_paused:
-                return False
+                # Same contract as pause-at-dequeue: skip + drain, never
+                # report a readiness timeout for an intentional pause.
+                return "paused"
             if self._take_cancel_if_queued():
                 return "cancelled"
             if ready.host is not None and self._page is not None:
-                if _host_matches(_hostname(self._page.current_url()), ready.host):
+                observed_host = _hostname(self._page.current_url())
+                if observed_host is None:
+                    # Bridge down / no active tab URL: waiting full timeout only
+                    # stalls the FIFO queue behind unresolved PageSteps.
+                    null_host_streak += 1
+                    if null_host_streak >= 3:
+                        return False
+                else:
+                    null_host_streak = 0
+                if _host_matches(observed_host, ready.host):
                     return True
             if ready.app is not None and self._focus is not None:
-                front = self._focus.frontmost_app()
-                if front is not None and front == ready.app.value:
+                observed_app = self._focus.frontmost_app()
+                if observed_app is not None and observed_app == ready.app.value:
                     return True
             self._sleep(READY_POLL_INTERVAL_S)
         return False

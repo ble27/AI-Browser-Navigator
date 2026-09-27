@@ -124,7 +124,43 @@ def test_readiness_waits_for_host() -> None:
     assert backend.calls
 
 
-def test_submit_returns_quickly_while_waiting() -> None:
+def test_readiness_fails_fast_when_page_url_unavailable() -> None:
+    backend = _RecordingBackend()
+    page = _FakePage(None)
+    reports: list[StepReport] = []
+    ticks = iter([0.0, 0.1, 0.2, 0.3, 0.4, 0.5])
+
+    def clock() -> float:
+        return next(ticks, 1.0)
+
+    executor = QueuedStepExecutor(
+        mapper=ActionMapper(backend),
+        page=page,
+        focus=None,
+        safe_pause=SafePause(),
+        report=reports.append,
+        sleep=lambda _duration: None,
+        clock=clock,
+    )
+    step = PageStep(
+        source=_clause("click orders"),
+        phrase="click orders",
+        ready=Readiness(host="amazon.com", max_wait_s=6.0),
+    )
+    trailing = ResolvedStep(
+        source=_clause("next tab", line_id=1),
+        intent=Intent(IntentType.NEXT_TAB),
+    )
+    executor.submit([step, trailing])
+    executor.close()
+    assert any(report.detail == "readiness timeout" for report in reports)
+    # Trailing browser-wide control must still run after the stalled page step.
+    assert any(
+        isinstance(report.step, ResolvedStep)
+        and report.step.intent.kind is IntentType.NEXT_TAB
+        and report.outcome is StepOutcome.DONE
+        for report in reports
+    )
     backend = _RecordingBackend()
     page = _FakePage("https://example.com/")
     executor = QueuedStepExecutor(
@@ -146,3 +182,44 @@ def test_submit_returns_quickly_while_waiting() -> None:
     elapsed_ms = (time.monotonic() - start) * 1000.0
     executor.close()
     assert elapsed_ms < 10.0
+
+
+def test_safe_pause_during_readiness_skips_and_drains() -> None:
+    backend = _RecordingBackend()
+    page = _FakePage("https://example.com/")
+    pause = SafePause()
+    reports: list[StepReport] = []
+    ticks = iter([0.0, 0.1, 0.2])
+
+    def clock() -> float:
+        return next(ticks, 0.3)
+
+    def on_sleep(_duration: float) -> None:
+        if not pause.is_paused:
+            pause.toggle()
+
+    executor = QueuedStepExecutor(
+        mapper=ActionMapper(backend),
+        page=page,
+        focus=None,
+        safe_pause=pause,
+        report=reports.append,
+        sleep=on_sleep,
+        clock=clock,
+    )
+    waiting = ResolvedStep(
+        source=_clause("search", line_id=1),
+        intent=Intent(IntentType.SEARCH_WEB, text="headphones"),
+        ready=Readiness(host="amazon.com", max_wait_s=6.0),
+    )
+    trailing = ResolvedStep(
+        source=_clause("open reddit", line_id=2),
+        intent=Intent(IntentType.OPEN_URL, url="https://www.reddit.com"),
+    )
+    executor.submit([waiting, trailing])
+    executor.close()
+    assert backend.calls == []
+    outcomes = [report.outcome for report in reports]
+    assert StepOutcome.SKIPPED_PAUSED in outcomes
+    assert StepOutcome.CANCELLED in outcomes
+    assert StepOutcome.FAILED not in outcomes
