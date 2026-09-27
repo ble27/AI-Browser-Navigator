@@ -88,12 +88,14 @@ ordinary HTTPS page, and start `--voice`.
 - [ ] `focus app search bar`, then `type unit test`, then `enter` or `done`
       focuses one active-page HTML search field, writes text, and submits it.
       With multiple page search fields, focus command does nothing.
+- [ ] `look up hello world` submits the query and leaves the page field
+      unfocused; `clear search` then focuses the unique visible search field and
+      clears it. `delete line` has the same select-all-and-clear behavior.
 - [ ] In a supported page search field, `type hello world` then `delete word`
-      leaves `hello`; `delete line` clears the whole field; `clear search` also
-      clears it only when the active field is a search field.
+      leaves `hello`, even if the caret was previously in the middle.
 - [ ] In a supported page search field or named contenteditable composer,
-      `unfocus` removes focus without changing its text. The same commands do
-      nothing to an unrelated focused page element.
+      `unfocus` or `stop focus` removes focus without changing its text. The
+      same commands do nothing to an unrelated focused page element.
 - [ ] `type delete word` remains literal typing, and `search for delete word`
       remains a search query; neither is consumed as an edit command.
 - [ ] `type <value> into <field>` replaces the named field value and dispatches

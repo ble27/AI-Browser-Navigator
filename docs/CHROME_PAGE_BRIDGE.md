@@ -131,11 +131,14 @@ Focus-and-compose voice commands use distinct names for two different targets:
 - `focus app search bar` means the unique HTML search field in the active tab.
   Aliases: `focus page search field`.
 - `type <text>` writes to the field selected by either command. `enter` and
-  `done` submit that focused field.
-- `unfocus` blurs a focused page search field or composer.
-- `delete line` clears the entire focused search field or composer, while
-  `delete word` removes the word before the cursor.
-- `clear search` clears the entire value only when a search field is focused.
+  `done` submit that focused field. Lookup submission blurs the page field;
+  its last search field remains available to the edit commands below.
+- `unfocus` or `stop focus` blurs a focused page search field or composer.
+- `delete line` focuses the last active search/composer field; `clear search`
+  focuses its last search field or a unique visible page search field. Both
+  select all and clear the text.
+- `delete word` focuses that field, moves the caret to the end, and removes the
+  last word and any whitespace immediately before it.
 
 App-field commands require this page bridge. Omnibox commands do not. A focus
 command never types or submits text.

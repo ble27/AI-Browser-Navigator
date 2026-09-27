@@ -48,7 +48,14 @@ def test_parse_chrome_omnibox_focus_command_is_explicit() -> None:
 
 
 def test_focused_page_field_commands_are_exact_and_targeted() -> None:
-    for phrase in ("unfocus", "unfocus app search bar", "unfocus composer"):
+    for phrase in (
+        "unfocus",
+        "unfocus app search bar",
+        "unfocus composer",
+        "stop focus",
+        "stop focusing",
+        "stop focus on search bar",
+    ):
         assert parse_focused_page_field_command(phrase) == Intent(
             IntentType.EDIT_FOCUSED_PAGE_FIELD,
             field_action=FocusedPageFieldAction.UNFOCUS,

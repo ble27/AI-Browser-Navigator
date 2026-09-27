@@ -15,6 +15,9 @@
   const elementsById = new Map();
   const pageNonce = crypto.randomUUID();
   let nextElementId = 1;
+  // Retain the last page field operated on so follow-up edit commands still
+  // work after a submitted search has blurred its field.
+  let lastEditableField = null;
 
   function isSupportedPage() {
     if (window.top !== window) {
@@ -374,14 +377,25 @@
 
   function focusedEditableField(action) {
     const active = document.activeElement;
-    if (!(active instanceof HTMLElement)) {
+    const activeIsEditable = active instanceof HTMLElement &&
+      (active instanceof HTMLInputElement || active instanceof HTMLTextAreaElement ||
+        active.isContentEditable || active.getAttribute("role") === "textbox");
+    let candidate = activeIsEditable ? active : lastEditableField;
+    if (action === "clear_search" &&
+        (!(candidate instanceof HTMLElement) || !candidate.isConnected || !isSearchField(candidate))) {
+      const visibleSearchFields = Array.from(
+        document.querySelectorAll("input, textarea, [contenteditable='true'], [role='textbox']")
+      ).filter((field) => isVisible(field) && isSearchField(field));
+      candidate = visibleSearchFields.length === 1 ? visibleSearchFields[0] : candidate;
+    }
+    if (!(candidate instanceof HTMLElement) || !candidate.isConnected) {
       throw new Error("No supported page field is focused");
     }
     const container =
-      active instanceof HTMLInputElement || active instanceof HTMLTextAreaElement
-        ? active
-        : active.closest("[contenteditable='true'], [role='textbox']");
-    const element = container || active;
+      candidate instanceof HTMLInputElement || candidate instanceof HTMLTextAreaElement
+        ? candidate
+        : candidate.closest("[contenteditable='true'], [role='textbox']");
+    const element = container || candidate;
     const editable =
       element instanceof HTMLTextAreaElement ||
       element.isContentEditable ||
@@ -402,21 +416,23 @@
     if (action === "clear_search" ? !search : !search && !composer) {
       throw new Error("Focus a page search field or composer before using this command");
     }
+    element.focus();
+    lastEditableField = element;
     return element;
   }
 
   function deletePreviousWord(element) {
     if (element instanceof HTMLInputElement || element instanceof HTMLTextAreaElement) {
       const value = element.value;
-      let start = element.selectionStart ?? value.length;
-      const end = element.selectionEnd ?? start;
-      if (start === end) {
-        while (start > 0 && /\s/.test(value[start - 1])) {
-          start -= 1;
-        }
-        while (start > 0 && !/\s/.test(value[start - 1])) {
-          start -= 1;
-        }
+      // Always operate at the end: speech entry can leave a stale caret or
+      // selection in the middle of a search field.
+      let start = value.length;
+      let end = value.length;
+      while (start > 0 && /\s/.test(value[start - 1])) {
+        start -= 1;
+      }
+      while (start > 0 && !/\s/.test(value[start - 1])) {
+        start -= 1;
       }
       if (start === end) {
         return;
@@ -437,9 +453,7 @@
     if (!selection) {
       throw new Error("The page composer does not expose a text selection");
     }
-    if (selection.rangeCount === 0 || !element.contains(selection.anchorNode)) {
-      placeCaretAtEnd(element);
-    }
+    placeCaretAtEnd(element);
     if (selection.isCollapsed && typeof selection.modify === "function") {
       selection.modify("extend", "backward", "word");
     }
@@ -467,7 +481,20 @@
       deletePreviousWord(element);
       return;
     }
-    setElementValue(element, "", "deleteContent");
+    if (element instanceof HTMLInputElement || element instanceof HTMLTextAreaElement) {
+      element.setSelectionRange(0, element.value.length);
+      setElementValue(element, "", "deleteContent");
+    } else {
+      const selection = window.getSelection();
+      const range = document.createRange();
+      range.selectNodeContents(element);
+      selection.removeAllRanges();
+      selection.addRange(range);
+      if (!document.execCommand("delete")) {
+        element.textContent = "";
+        element.dispatchEvent(new InputEvent("input", { bubbles: true, inputType: "deleteContent" }));
+      }
+    }
   }
 
   function pressEnter(element) {
@@ -523,13 +550,22 @@
     }
     if (request.operation === "focus") {
       target.focus();
+      if (target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement ||
+          target.isContentEditable || target.getAttribute("role") === "textbox") {
+        lastEditableField = target;
+      }
       return {};
     }
     if (request.operation === "type" || request.operation === "submit") {
       target.focus();
+      if (target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement ||
+          target.isContentEditable || target.getAttribute("role") === "textbox") {
+        lastEditableField = target;
+      }
       setElementValue(target, request.text);
       if (request.operation === "submit") {
         submitThroughField(target);
+        target.blur();
       }
       return {};
     }
