@@ -55,7 +55,7 @@ python -m gesture_control.app --command "next tab"        # send a fixed Chrome 
 python -m gesture_control.app --command "search for hand tracking"
 python -m gesture_control.app --command "scroll down 3 pages"
 python -m gesture_control.app --voice                     # utterance mode (default; macOS)
-python -m gesture_control.app --voice --voice-mode streaming  # Moonshine streaming agent
+python -m gesture_control.app --voice --voice-mode streaming  # Chrome Web Speech + local agent
 python -m gesture_control.app --version
 ```
 
@@ -100,16 +100,17 @@ focus Google Chrome, then explicitly start continuous listening:
 
 ```bash
 python -m gesture_control.app --voice
-# Streaming agent (Moonshine; acts while you talk):
+# Streaming agent (Chrome Web Speech hears; the local agent acts):
 python -m gesture_control.app --voice --voice-mode streaming
 # Or select another faster-whisper model for utterance mode:
 python -m gesture_control.app --voice --voice-model base.en
 ```
 
-The default `tiny.en` model runs on CPU with int8 compute. It may download and
-cache model files on first use; after that, recognition is fully local. Audio
-is never uploaded and no hosted API is used. `--voice` continuously waits for
-commands until Ctrl+C; there is no wake word yet. Use
+Utterance mode uses `tiny.en` on CPU with int8 compute. It may download and
+cache model files on first use; after that, that mode stays fully local.
+Streaming mode opens a separate Chrome window and uses the free Web Speech
+API, so that audio is sent to Google. The command agent still runs locally.
+`--voice` waits for commands until Ctrl+C; there is no wake word yet. Use
 **Control+Option+Command+P** to pause/resume injected browser actions during
 the session.
 

@@ -12,6 +12,12 @@ Tracked here instead of inline `TODO`s so `main` stays clean. Move items out
   v1 stretch item).
 - Optional local LLM (Ollama) fallback for free-form voice phrasing beyond the
   deterministic command grammar.
+- Optional FINAL redecode with a stronger local STT (`mlx-whisper` /
+  `whisper.cpp` / `parakeet-mlx`) if faster-whisper ``base.en`` via
+  `--voice-redecode` is still insufficient on the real-voice corpus.
+- Local-only streaming STT as the default (Moonshine / MLX Whisper /
+  Parakeet). Streaming default is Chrome Web Speech; local models stay an
+  optional `--voice-stt` path. See `docs/STREAMING_VOICE_HANDOFF.md`.
 - Full Wayland parity (compositor-specific quirks beyond the documented
   `ydotool` best-effort path).
 

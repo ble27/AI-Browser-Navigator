@@ -182,22 +182,39 @@ ordinary HTTPS page, and start `--voice`.
 ### M5 streaming voice (manual; blocks default flip)
 
 Run from the repo venv on macOS with the Chrome page bridge connected.
+Streaming STT is Chrome Web Speech (`--voice-stt web_speech`, the default):
 
-- [ ] Held-out accuracy: `python tests/manual/verify_moonshine_streaming.py --live --repair`
-      scores at least 90% brand keywords.
-- [ ] `gesture-control --voice --voice-mode streaming`: say **open reddit**; Chrome
+```bash
+python -m gesture_control.app --voice --voice-mode streaming
+```
+
+Allow the microphone in the separate voice-control window and click
+**Start microphone**. Leave that window open. Local Moonshine / MLX backends
+remain available via `--voice-stt`.
+
+- [ ] Control window opens, Start microphone shows **Listening**, and a spoken
+      **next tab** prints a step report without a local STT model.
+
+Expect ~0.1 s debounce for tab/scroll and up to ~0.6 s hold before free-text
+actions (type / ask / search / page click) flush. Destructive clicks
+(buy / submit / checkout / …) wait until you say **confirm**.
+
+- [ below baseline ] Held-out accuracy: `python tests/manual/verify_moonshine_streaming.py --live --repair`
+      scores at least 90% brand keywords. Prefer the expanded corpus:
+      `python tests/manual/verify_moonshine_streaming.py --corpus --repair`
+- [works ] `gesture-control --voice --voice-mode streaming`: say **open reddit**; Chrome
       opens Reddit.
-- [ ] Same session: **open amazon and scroll down** — Amazon opens before you
+- [ doesnt' fully work ] Same session: **open amazon and scroll down** — Amazon opens before you
       finish the sentence.
-- [ ] **open amazon and click orders** after Amazon is ready (Account & Lists →
+- [doesn't work ] **open amazon and click orders** after Amazon is ready (Account & Lists →
       Orders or equivalent).
-- [ ] Notes macro: **open notes then new note then type buy milk and eggs then
+- [ works but buggy ] Notes macro: **open notes then new note then type buy milk and eggs then
       press enter**.
-- [ ] **ask claude …** and **ask chatgpt …** while logged in; drop assistants
+- [ doesn't work ] **ask claude …** and **ask chatgpt …** while logged in; drop assistants
       whose composer does not autofocus (record in `docs/BACKLOG.md`).
-- [ ] Press SafePause mid-queue; queued steps must not dispatch after resume.
-- [ ] Say **cancel** while a step waits on readiness; pending work is cancelled.
-- [ ] Regression: `gesture-control --voice --voice-mode utterance` still behaves
+- [ doesn't work] Press SafePause mid-queue; queued steps must not dispatch after resume.
+- [must say in one line or doesn't work ] Say **cancel** while a step waits on readiness; pending work is cancelled.
+- [ open tasks, can't cancel too quick ] Regression: `gesture-control --voice --voice-mode utterance` still behaves
       as before.
 
 ## M6 — Accessibility layer
