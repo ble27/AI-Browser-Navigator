@@ -1,7 +1,15 @@
 (() => {
   "use strict";
 
-  const ALLOWED_OPERATIONS = new Set(["snapshot", "click", "focus", "type", "submit"]);
+  const ALLOWED_OPERATIONS = new Set([
+    "snapshot",
+    "click",
+    "focus",
+    "type",
+    "submit",
+    "edit_focused_field"
+  ]);
+  const FIELD_ACTIONS = new Set(["unfocus", "delete_line", "clear_search", "delete_word"]);
   const MAX_TEXT_LENGTH = 10_000;
   const elementIds = new WeakMap();
   const elementsById = new Map();
@@ -312,7 +320,7 @@
     return target;
   }
 
-  function setElementValue(element, text) {
+  function setElementValue(element, text, inputType = "insertText") {
     if (typeof text !== "string" || text.length > MAX_TEXT_LENGTH) {
       throw new Error(`text must be a string of at most ${MAX_TEXT_LENGTH} characters`);
     }
@@ -323,11 +331,143 @@
       setter.call(element, text);
     } else if (element.isContentEditable || element.getAttribute("role") === "textbox") {
       element.textContent = text;
+      placeCaretAtEnd(element);
     } else {
       throw new Error("Target does not accept text");
     }
-    element.dispatchEvent(new InputEvent("input", { bubbles: true, inputType: "insertText", data: text }));
+    element.dispatchEvent(
+      new InputEvent("input", { bubbles: true, inputType, data: text || null })
+    );
     element.dispatchEvent(new Event("change", { bubbles: true }));
+  }
+
+  function placeCaretAtEnd(element) {
+    const selection = window.getSelection();
+    if (!selection) {
+      return;
+    }
+    const range = document.createRange();
+    range.selectNodeContents(element);
+    range.collapse(false);
+    selection.removeAllRanges();
+    selection.addRange(range);
+  }
+
+  function isSearchField(element) {
+    const name = accessibleName(element).toLocaleLowerCase();
+    return (
+      (element instanceof HTMLInputElement && element.type === "search") ||
+      element.getAttribute("role") === "searchbox" ||
+      /(^|\W)search(\W|$)/.test(name)
+    );
+  }
+
+  function isComposer(element) {
+    const name = accessibleName(element).toLocaleLowerCase();
+    const textControl =
+      element instanceof HTMLInputElement ||
+      element instanceof HTMLTextAreaElement ||
+      element.isContentEditable ||
+      element.getAttribute("role") === "textbox";
+    return textControl && /(^|\W)(ask|chat|compose|composer|message|prompt|reply)(\W|$)/.test(name);
+  }
+
+  function focusedEditableField(action) {
+    const active = document.activeElement;
+    if (!(active instanceof HTMLElement)) {
+      throw new Error("No supported page field is focused");
+    }
+    const container =
+      active instanceof HTMLInputElement || active instanceof HTMLTextAreaElement
+        ? active
+        : active.closest("[contenteditable='true'], [role='textbox']");
+    const element = container || active;
+    const editable =
+      element instanceof HTMLTextAreaElement ||
+      element.isContentEditable ||
+      element.getAttribute("role") === "textbox" ||
+      (element instanceof HTMLInputElement &&
+        !["button", "submit", "reset", "image", "hidden", "radio", "file"].includes(element.type));
+    if (
+      !editable ||
+      element.hasAttribute("disabled") ||
+      element.hasAttribute("readonly") ||
+      element.getAttribute("aria-disabled") === "true" ||
+      !isVisible(element)
+    ) {
+      throw new Error("No supported page field is focused");
+    }
+    const search = isSearchField(element);
+    const composer = isComposer(element);
+    if (action === "clear_search" ? !search : !search && !composer) {
+      throw new Error("Focus a page search field or composer before using this command");
+    }
+    return element;
+  }
+
+  function deletePreviousWord(element) {
+    if (element instanceof HTMLInputElement || element instanceof HTMLTextAreaElement) {
+      const value = element.value;
+      let start = element.selectionStart ?? value.length;
+      const end = element.selectionEnd ?? start;
+      if (start === end) {
+        while (start > 0 && /\s/.test(value[start - 1])) {
+          start -= 1;
+        }
+        while (start > 0 && !/\s/.test(value[start - 1])) {
+          start -= 1;
+        }
+      }
+      if (start === end) {
+        return;
+      }
+      const nextValue = value.slice(0, start) + value.slice(end);
+      const prototype =
+        element instanceof HTMLTextAreaElement ? HTMLTextAreaElement.prototype : HTMLInputElement.prototype;
+      Object.getOwnPropertyDescriptor(prototype, "value").set.call(element, nextValue);
+      element.setSelectionRange(start, start);
+      element.dispatchEvent(
+        new InputEvent("input", { bubbles: true, inputType: "deleteWordBackward", data: null })
+      );
+      element.dispatchEvent(new Event("change", { bubbles: true }));
+      return;
+    }
+
+    const selection = window.getSelection();
+    if (!selection) {
+      throw new Error("The page composer does not expose a text selection");
+    }
+    if (selection.rangeCount === 0 || !element.contains(selection.anchorNode)) {
+      placeCaretAtEnd(element);
+    }
+    if (selection.isCollapsed && typeof selection.modify === "function") {
+      selection.modify("extend", "backward", "word");
+    }
+    if (selection.isCollapsed) {
+      return;
+    }
+    if (!document.execCommand("delete")) {
+      selection.getRangeAt(0).deleteContents();
+      element.dispatchEvent(
+        new InputEvent("input", { bubbles: true, inputType: "deleteWordBackward", data: null })
+      );
+    }
+  }
+
+  function editFocusedField(action) {
+    if (!FIELD_ACTIONS.has(action)) {
+      throw new Error("Unsupported focused-field action");
+    }
+    const element = focusedEditableField(action);
+    if (action === "unfocus") {
+      element.blur();
+      return;
+    }
+    if (action === "delete_word") {
+      deletePreviousWord(element);
+      return;
+    }
+    setElementValue(element, "", "deleteContent");
   }
 
   function pressEnter(element) {
@@ -372,6 +512,10 @@
     if (request.operation === "snapshot") {
       return snapshot();
     }
+    if (request.operation === "edit_focused_field") {
+      editFocusedField(request.action);
+      return {};
+    }
     const target = resolveTarget(request.target_id);
     if (request.operation === "click") {
       target.click();
@@ -400,4 +544,8 @@
     }
     return false;
   });
+
+  // Wake the MV3 service worker after every supported page load. The worker
+  // owns Native Messaging and may have been suspended since the app started.
+  chrome.runtime.sendMessage({ type: "page_bridge_ready" }).catch(() => {});
 })();

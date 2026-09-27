@@ -281,6 +281,17 @@ def run_voice_command(command: str) -> int:
     if intent is None:
         print(f"error: unrecognized command: {command!r}", file=sys.stderr)
         return 1
+    if intent.kind is IntentType.EDIT_FOCUSED_PAGE_FIELD:
+        from gesture_control.browser.bridge import ChromePageBridge
+
+        try:
+            with ChromePageBridge() as page_bridge:
+                backend = MacOSInputBackend(page_bridge=page_bridge)
+                ActionMapper(backend).dispatch(intent)
+        except (RuntimeError, OSError, ValueError) as exc:
+            print(f"error: cannot edit the active page field: {exc}", file=sys.stderr)
+            return 1
+        return 0
     backend = MacOSInputBackend()
     ActionMapper(backend).dispatch(intent)
     return 0

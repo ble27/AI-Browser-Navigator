@@ -122,6 +122,24 @@ Supported live-page phrases include:
 - Homework / WebAssign-style: `answer is 42`, `the answer is 3.14`,
   `type 9 into answer 1`, `type 8 into second answer`, `submit answer`
 
+## Focus terminology
+
+Focus-and-compose voice commands use distinct names for two different targets:
+
+- `focus Chrome search bar` means Chrome's omnibox. Aliases: `focus Chrome
+  address bar`, `focus Chrome omnibox`.
+- `focus app search bar` means the unique HTML search field in the active tab.
+  Aliases: `focus page search field`.
+- `type <text>` writes to the field selected by either command. `enter` and
+  `done` submit that focused field.
+- `unfocus` blurs a focused page search field or composer.
+- `delete line` clears the entire focused search field or composer, while
+  `delete word` removes the word before the cursor.
+- `clear search` clears the entire value only when a search field is focused.
+
+App-field commands require this page bridge. Omnibox commands do not. A focus
+command never types or submits text.
+
 Local fixture testing may use `http://127.0.0.1` / `http://localhost` via
 `python scripts/serve_bridge_fixture.py`. Production sites such as WebAssign
 continue to use HTTPS.

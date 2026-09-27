@@ -4,7 +4,13 @@ from __future__ import annotations
 
 import pytest
 from gesture_control.actions import ActionMapper, Intent, IntentType
-from gesture_control.backends.base import BrowserAction, InputBackend, LaunchableApp, PressableKey
+from gesture_control.backends.base import (
+    BrowserAction,
+    FocusedPageFieldAction,
+    InputBackend,
+    LaunchableApp,
+    PressableKey,
+)
 from gesture_control.voice.stream_contracts import MAX_TYPED_CHARS
 
 
@@ -23,9 +29,11 @@ class _FakeBackend(InputBackend):
         self.focused_elements: list[str] = []
         self.typed: list[tuple[str, str]] = []
         self.submitted: list[tuple[str, str]] = []
+        self.omnibox_focuses = 0
         self.opened_apps: list[LaunchableApp] = []
         self.focused_text: list[str] = []
         self.pressed_keys: list[PressableKey] = []
+        self.field_actions: list[FocusedPageFieldAction] = []
 
     def screen_size(self) -> tuple[int, int]:
         return 100, 100
@@ -70,6 +78,10 @@ class _FakeBackend(InputBackend):
         if not self.safe_pause.is_paused:
             self.submitted.append((target_id, text))
 
+    def focus_chrome_omnibox(self) -> None:
+        if not self.safe_pause.is_paused:
+            self.omnibox_focuses += 1
+
     def open_app(self, app: LaunchableApp) -> None:
         if not self.safe_pause.is_paused:
             self.opened_apps.append(app)
@@ -81,6 +93,10 @@ class _FakeBackend(InputBackend):
     def press_key(self, key: PressableKey) -> None:
         if not self.safe_pause.is_paused:
             self.pressed_keys.append(key)
+
+    def edit_focused_page_field(self, action: FocusedPageFieldAction) -> None:
+        if not self.safe_pause.is_paused:
+            self.field_actions.append(action)
 
 
 def test_action_mapper_dispatches_cursor_move_and_click() -> None:
@@ -175,6 +191,14 @@ def test_action_mapper_clicks_a_named_page_element() -> None:
     ActionMapper(backend).dispatch(Intent(IntentType.CLICK_ELEMENT, target_id="e1"))
 
     assert backend.clicked_elements == ["e1"]
+
+
+def test_action_mapper_focuses_chrome_omnibox() -> None:
+    backend = _FakeBackend()
+
+    ActionMapper(backend).dispatch(Intent(IntentType.FOCUS_CHROME_OMNIBOX))
+
+    assert backend.omnibox_focuses == 1
 
 
 def test_action_mapper_dispatches_search_and_scroll_payloads() -> None:
@@ -310,3 +334,38 @@ def test_press_key_intent_requires_key() -> None:
     with pytest.raises(ValueError, match="key"):
         ActionMapper(backend).dispatch(Intent(IntentType.PRESS_KEY))
     assert backend.pressed_keys == []
+
+
+def test_action_mapper_dispatches_focused_page_field_edit() -> None:
+    backend = _FakeBackend()
+    ActionMapper(backend).dispatch(
+        Intent(
+            IntentType.EDIT_FOCUSED_PAGE_FIELD,
+            field_action=FocusedPageFieldAction.DELETE_WORD,
+        )
+    )
+
+    assert backend.field_actions == [FocusedPageFieldAction.DELETE_WORD]
+
+
+def test_action_mapper_rejects_focused_page_field_edit_without_action() -> None:
+    backend = _FakeBackend()
+
+    with pytest.raises(ValueError, match="field_action"):
+        ActionMapper(backend).dispatch(Intent(IntentType.EDIT_FOCUSED_PAGE_FIELD))
+
+    assert backend.field_actions == []
+
+
+def test_safe_pause_blocks_focused_page_field_edits() -> None:
+    backend = _FakeBackend()
+    backend.safe_pause.toggle()
+
+    ActionMapper(backend).dispatch(
+        Intent(
+            IntentType.EDIT_FOCUSED_PAGE_FIELD,
+            field_action=FocusedPageFieldAction.DELETE_LINE,
+        )
+    )
+
+    assert backend.field_actions == []

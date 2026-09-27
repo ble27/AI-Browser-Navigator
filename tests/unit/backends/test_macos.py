@@ -5,7 +5,13 @@ from __future__ import annotations
 from typing import Any
 
 import pytest
-from gesture_control.backends.base import BrowserAction, InputBackend, LaunchableApp, PressableKey
+from gesture_control.backends.base import (
+    BrowserAction,
+    FocusedPageFieldAction,
+    InputBackend,
+    LaunchableApp,
+    PressableKey,
+)
 from gesture_control.backends.macos import MacOSInputBackend, _open_url_in_google_chrome
 
 
@@ -61,6 +67,7 @@ def _backend_with_shortcut_recorder() -> tuple[MacOSInputBackend, list[tuple[str
     backend, _mouse = _backend_with_fake_mouse()
     shortcuts: list[tuple[str, ...]] = []
     backend._shortcut_sender = shortcuts.append
+    backend._navigation_target_is_focused = lambda: True
     return backend, shortcuts
 
 
@@ -192,6 +199,59 @@ def test_paused_backend_does_not_send_browser_shortcut() -> None:
     assert shortcuts == []
 
 
+def test_navigate_browser_sends_shortcut_only_to_focused_browsing_window() -> None:
+    """Navigation should not change focus before sending its shortcut."""
+    backend, _shortcuts = _backend_with_shortcut_recorder()
+    calls: list[str] = []
+    backend._navigation_target_is_focused = lambda: calls.append("checked") or True
+    backend._shortcut_sender = lambda keys: calls.append(f"shortcut:{keys}")
+
+    backend.navigate_browser(BrowserAction.NEXT_TAB)
+
+    assert calls == ["checked", "shortcut:('cmd', 'alt', 'right')"]
+
+
+def test_navigate_browser_ignores_command_when_control_window_is_focused() -> None:
+    """The Web Speech control window must never receive tab shortcuts."""
+    backend, shortcuts = _backend_with_shortcut_recorder()
+    backend._navigation_target_is_focused = lambda: False
+
+    backend.navigate_browser(BrowserAction.NEXT_TAB)
+
+    assert shortcuts == []
+
+
+def test_focus_chrome_omnibox_sends_shortcut_only_to_focused_browsing_window() -> None:
+    backend, shortcuts = _backend_with_shortcut_recorder()
+
+    backend.focus_chrome_omnibox()
+
+    assert shortcuts == [("cmd", "l")]
+
+
+def test_focus_chrome_omnibox_ignores_control_window_and_safe_pause() -> None:
+    backend, shortcuts = _backend_with_shortcut_recorder()
+    backend._navigation_target_is_focused = lambda: False
+    backend.focus_chrome_omnibox()
+    backend.safe_pause.toggle()
+    backend._navigation_target_is_focused = lambda: True
+    backend.focus_chrome_omnibox()
+
+    assert shortcuts == []
+
+
+def test_paused_backend_does_not_check_or_send_browser_shortcut() -> None:
+    """Safe-pause should gate the focus check and shortcut injection."""
+    backend, _shortcuts = _backend_with_shortcut_recorder()
+    focused_calls: list[str] = []
+    backend._navigation_target_is_focused = lambda: focused_calls.append("checked") or True
+    backend.safe_pause.toggle()
+
+    backend.navigate_browser(BrowserAction.NEXT_TAB)
+
+    assert focused_calls == []
+
+
 class _RecordingPageBridge:
     """Record page click and type calls without a browser."""
 
@@ -200,6 +260,7 @@ class _RecordingPageBridge:
         self.focused: list[str] = []
         self.typed: list[tuple[str, str]] = []
         self.submitted: list[tuple[str, str]] = []
+        self.field_actions: list[FocusedPageFieldAction] = []
 
     def click(self, target_id: str) -> None:
         """Record one element click."""
@@ -216,6 +277,10 @@ class _RecordingPageBridge:
     def type_and_submit(self, target_id: str, text: str) -> None:
         """Record one type-and-submit action."""
         self.submitted.append((target_id, text))
+
+    def edit_focused_field(self, action: FocusedPageFieldAction) -> None:
+        """Record one focused-field edit."""
+        self.field_actions.append(action)
 
 
 def _backend_with_page_bridge() -> tuple[MacOSInputBackend, _RecordingPageBridge]:
@@ -254,6 +319,14 @@ def test_focus_and_submit_reach_the_page_bridge() -> None:
     assert bridge.submitted == [("search", "keyboard")]
 
 
+def test_focused_field_edit_reaches_the_page_bridge() -> None:
+    backend, bridge = _backend_with_page_bridge()
+
+    backend.edit_focused_page_field(FocusedPageFieldAction.CLEAR_SEARCH)
+
+    assert bridge.field_actions == [FocusedPageFieldAction.CLEAR_SEARCH]
+
+
 def test_paused_backend_does_not_call_the_page_bridge() -> None:
     """Safe-pause must block page click and type before the bridge."""
     backend, bridge = _backend_with_page_bridge()
@@ -263,11 +336,13 @@ def test_paused_backend_does_not_call_the_page_bridge() -> None:
     backend.type_text("e2", "hello")
     backend.focus_element("search")
     backend.submit_text("search", "keyboard")
+    backend.edit_focused_page_field(FocusedPageFieldAction.DELETE_LINE)
 
     assert bridge.clicks == []
     assert bridge.typed == []
     assert bridge.focused == []
     assert bridge.submitted == []
+    assert bridge.field_actions == []
 
 
 def test_open_app_launches_named_application(monkeypatch: pytest.MonkeyPatch) -> None:

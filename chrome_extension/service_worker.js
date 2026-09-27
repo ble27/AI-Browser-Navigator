@@ -1,7 +1,8 @@
 "use strict";
 
 const NATIVE_HOST_NAME = "com.ai_gestures.page_bridge";
-const OPERATIONS = new Set(["snapshot", "click", "focus", "type", "submit"]);
+const OPERATIONS = new Set(["snapshot", "click", "focus", "type", "submit", "edit_focused_field"]);
+const FIELD_ACTIONS = new Set(["unfocus", "delete_line", "clear_search", "delete_word"]);
 const MAX_REQUEST_ID_LENGTH = 128;
 const MAX_TARGET_ID_LENGTH = 200;
 const MAX_TEXT_LENGTH = 10_000;
@@ -24,7 +25,12 @@ function validateRequest(message) {
     throw new Error("Unsupported operation");
   }
   const expectedKeys = new Set(["request_id", "operation"]);
-  if (operation !== "snapshot") {
+  if (operation === "edit_focused_field") {
+    expectedKeys.add("action");
+    if (typeof message.action !== "string" || !FIELD_ACTIONS.has(message.action)) {
+      throw new Error("Unsupported focused-field action");
+    }
+  } else if (operation !== "snapshot") {
     expectedKeys.add("target_id");
     if (
       typeof message.target_id !== "string" ||
@@ -46,6 +52,7 @@ function validateRequest(message) {
   return {
     request_id: requestId,
     operation,
+    ...(message.action === undefined ? {} : { action: message.action }),
     ...(message.target_id === undefined ? {} : { target_id: message.target_id }),
     ...(message.text === undefined ? {} : { text: message.text })
   };
@@ -110,7 +117,11 @@ function connectNativeHost() {
       });
     });
     nativePort.onDisconnect.addListener(() => {
+      const error = chrome.runtime.lastError;
       nativePort = null;
+      if (error) {
+        console.error(`[AI Gestures Page Bridge] Native host disconnected: ${error.message}`);
+      }
       if (reconnectTimer === null) {
         reconnectTimer = setTimeout(() => {
           reconnectTimer = null;
@@ -118,9 +129,24 @@ function connectNativeHost() {
         }, 2000);
       }
     });
-  } catch (_error) {
+  } catch (error) {
     nativePort = null;
+    console.error(
+      "[AI Gestures Page Bridge] Could not connect to the native host:",
+      error instanceof Error ? error.message : error
+    );
   }
 }
+
+// MV3 workers sleep when idle. Wake the relay on profile startup, installation,
+// and each supported page load so an app-created socket can be discovered
+// without requiring the user to open the extension's DevTools panel.
+chrome.runtime.onStartup.addListener(connectNativeHost);
+chrome.runtime.onInstalled.addListener(connectNativeHost);
+chrome.runtime.onMessage.addListener((message) => {
+  if (isPlainObject(message) && message.type === "page_bridge_ready") {
+    connectNativeHost();
+  }
+});
 
 connectNativeHost();

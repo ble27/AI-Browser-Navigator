@@ -67,6 +67,10 @@ _TARGET_ALIASES: dict[str, tuple[str, ...]] = {
 }
 _RANK_MIN_SCORE = 0.55
 _RANK_MARGIN = 0.12
+# ChromePageBridge's default connect timeout is several seconds; the executor's
+# readiness loop polls at READY_POLL_INTERVAL_S (0.25s) and expects a fast
+# "still disconnected" answer, not a multi-second block on every iteration.
+_CURRENT_URL_POLL_TIMEOUT_S = 0.3
 
 
 class PageCommandUnavailableError(RuntimeError):
@@ -173,9 +177,15 @@ class LivePageCommandResolver:
             self._cached_at = time.monotonic()
 
     def current_url(self) -> str | None:
-        """Return the active tab URL, or ``None`` when the bridge is down."""
+        """Return the active tab URL, or ``None`` when the bridge is down.
+
+        Used from the executor's readiness poll loop
+        (``READY_POLL_INTERVAL_S`` cadence), so this uses a short bridge
+        timeout: the default connect timeout would otherwise block each
+        poll for several seconds while the bridge is disconnected.
+        """
         try:
-            return self._take_snapshot().url
+            return self._take_snapshot(timeout=_CURRENT_URL_POLL_TIMEOUT_S).url
         except BridgeError:
             return None
 
@@ -227,8 +237,13 @@ class LivePageCommandResolver:
             return None
         return _rank_click_target(spoken, elements)
 
-    def _take_snapshot(self) -> PageSnapshot:
-        """Return a fresh or briefly cached page snapshot."""
+    def _take_snapshot(self, *, timeout: float | None = None) -> PageSnapshot:
+        """Return a fresh or briefly cached page snapshot.
+
+        Args:
+            timeout: Optional bridge-call timeout override. ``None`` uses the
+                bridge's own default (a longer, one-shot connect wait).
+        """
         with self._lock:
             cached = self._cached
             cached_at = self._cached_at
@@ -236,7 +251,7 @@ class LivePageCommandResolver:
             with self._lock:
                 self._cached = None
             return cached
-        snapshot = self._bridge.snapshot()
+        snapshot = self._bridge.snapshot(timeout=timeout)
         with self._lock:
             self._cached = None
         return snapshot

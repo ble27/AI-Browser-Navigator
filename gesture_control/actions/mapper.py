@@ -5,12 +5,18 @@ from __future__ import annotations
 from dataclasses import dataclass
 from enum import StrEnum
 
-from gesture_control.backends.base import BrowserAction, InputBackend, LaunchableApp, PressableKey
+from gesture_control.backends.base import (
+    BrowserAction,
+    FocusedPageFieldAction,
+    InputBackend,
+    LaunchableApp,
+    PressableKey,
+)
 from gesture_control.voice.stream_contracts import MAX_TYPED_CHARS
 
 
 class IntentType(StrEnum):
-    """Actions currently understood by the M2 Action Mapper."""
+    """Actions currently understood by the shared Action Mapper."""
 
     MOVE_CURSOR = "move_cursor"
     CLICK_LEFT = "click_left"
@@ -27,8 +33,10 @@ class IntentType(StrEnum):
     SCROLL = "scroll"
     CLICK_ELEMENT = "click_element"
     FOCUS_ELEMENT = "focus_element"
+    EDIT_FOCUSED_PAGE_FIELD = "edit_focused_page_field"
     TYPE_TEXT = "type_text"
     SUBMIT_TEXT = "submit_text"
+    FOCUS_CHROME_OMNIBOX = "focus_chrome_omnibox"
     OPEN_APP = "open_app"
     TYPE_FOCUSED = "type_focused"
     PRESS_KEY = "press_key"
@@ -63,6 +71,8 @@ class Intent:
             and negative values scroll down.
         app: Application to open for ``OPEN_APP``.
         key: Key chord for ``PRESS_KEY``.
+        field_action: Guarded active page field edit for
+            ``EDIT_FOCUSED_PAGE_FIELD``.
     """
 
     kind: IntentType
@@ -74,6 +84,7 @@ class Intent:
     amount: int | None = None
     app: LaunchableApp | None = None
     key: PressableKey | None = None
+    field_action: FocusedPageFieldAction | None = None
 
 
 class ActionMapper:
@@ -97,7 +108,8 @@ class ActionMapper:
             ValueError: If a cursor movement intent omits a coordinate, an
                 ``OPEN_URL`` intent omits ``url``, a ``CLICK_ELEMENT`` intent
                 omits ``target_id``, or a ``TYPE_TEXT`` intent omits
-                ``target_id`` or ``text``.
+                ``target_id`` or ``text``, or a focused-page edit omits its
+                action.
         """
         if intent.kind is IntentType.MOVE_CURSOR:
             if intent.x is None or intent.y is None:
@@ -127,6 +139,10 @@ class ActionMapper:
             if not intent.target_id:
                 raise ValueError("FOCUS_ELEMENT intents require a target_id.")
             self._backend.focus_element(intent.target_id)
+        elif intent.kind is IntentType.EDIT_FOCUSED_PAGE_FIELD:
+            if intent.field_action is None:
+                raise ValueError("EDIT_FOCUSED_PAGE_FIELD intents require a field_action.")
+            self._backend.edit_focused_page_field(intent.field_action)
         elif intent.kind is IntentType.TYPE_TEXT:
             if not intent.target_id or intent.text is None:
                 raise ValueError("TYPE_TEXT intents require a target_id and text.")
@@ -135,6 +151,8 @@ class ActionMapper:
             if not intent.target_id or intent.text is None:
                 raise ValueError("SUBMIT_TEXT intents require a target_id and text.")
             self._backend.submit_text(intent.target_id, intent.text)
+        elif intent.kind is IntentType.FOCUS_CHROME_OMNIBOX:
+            self._backend.focus_chrome_omnibox()
         elif intent.kind is IntentType.OPEN_APP:
             if intent.app is None:
                 raise ValueError("OPEN_APP intents require an app.")

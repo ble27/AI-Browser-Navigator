@@ -3,15 +3,38 @@
 from __future__ import annotations
 
 from gesture_control.actions import Intent, IntentType
-from gesture_control.backends.base import LaunchableApp, PressableKey
+from gesture_control.backends.base import FocusedPageFieldAction, LaunchableApp, PressableKey
 from gesture_control.voice.browser import parse_browser_command
 from gesture_control.voice.spans import extract_ask_span, extract_type_span
 from gesture_control.voice.stream_contracts import AskRequest, TypeRequest
 
 _CONTROL_PHRASES = frozenset({"cancel", "stop", "never mind"})
+_CHROME_OMNIBOX_FOCUS_PHRASES = frozenset(
+    {
+        "focus chrome search bar",
+        "focus chrome address bar",
+        "focus chrome omnibox",
+    },
+)
+_FOCUSED_PAGE_FIELD_COMMANDS = {
+    "unfocus": FocusedPageFieldAction.UNFOCUS,
+    "unfocus field": FocusedPageFieldAction.UNFOCUS,
+    "unfocus search bar": FocusedPageFieldAction.UNFOCUS,
+    "unfocus app search bar": FocusedPageFieldAction.UNFOCUS,
+    "unfocus composer": FocusedPageFieldAction.UNFOCUS,
+    "unfocus app composer": FocusedPageFieldAction.UNFOCUS,
+    "delete line": FocusedPageFieldAction.DELETE_LINE,
+    "clear search": FocusedPageFieldAction.CLEAR_SEARCH,
+    "clear search bar": FocusedPageFieldAction.CLEAR_SEARCH,
+    "delete search": FocusedPageFieldAction.CLEAR_SEARCH,
+    "delete word": FocusedPageFieldAction.DELETE_WORD,
+    "delete previous word": FocusedPageFieldAction.DELETE_WORD,
+}
 
 _KEY_PHRASES: dict[str, PressableKey] = {
     "press enter": PressableKey.ENTER,
+    "enter": PressableKey.ENTER,
+    "done": PressableKey.ENTER,
     "hit enter": PressableKey.ENTER,
     "click enter": PressableKey.ENTER,
     "tap enter": PressableKey.ENTER,
@@ -78,6 +101,34 @@ def parse_key_command(text: str) -> Intent | None:
     if key is None:
         return None
     return Intent(IntentType.PRESS_KEY, key=key)
+
+
+def parse_chrome_omnibox_focus_command(text: str) -> Intent | None:
+    """Parse explicit Chrome-omnibox focus phrases.
+
+    ``Chrome search bar`` always means Chrome's browser UI, never an HTML
+    search field in the active tab.
+    """
+    collapsed = " ".join(text.split()).casefold().strip(".,!?")
+    if collapsed not in _CHROME_OMNIBOX_FOCUS_PHRASES:
+        return None
+    return Intent(IntentType.FOCUS_CHROME_OMNIBOX)
+
+
+def parse_focused_page_field_command(text: str) -> Intent | None:
+    """Parse an exact edit command for the active page search/composer field.
+
+    Args:
+        text: Complete normalized voice clause.
+
+    Returns:
+        A guarded page-field action, or ``None`` for ordinary dictation.
+    """
+    collapsed = " ".join(text.split()).casefold().strip(".,!?")
+    action = _FOCUSED_PAGE_FIELD_COMMANDS.get(collapsed)
+    if action is None:
+        return None
+    return Intent(IntentType.EDIT_FOCUSED_PAGE_FIELD, field_action=action)
 
 
 def parse_app_command(text: str) -> Intent | None:

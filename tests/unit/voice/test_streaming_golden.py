@@ -6,10 +6,10 @@ from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
 from typing import Any
 
-import pytest
 from gesture_control.actions import ActionMapper, Intent, IntentType
 from gesture_control.backends.base import (
     BrowserAction,
+    FocusedPageFieldAction,
     InputBackend,
     LaunchableApp,
     PressableKey,
@@ -82,6 +82,10 @@ class RecordingBackend(InputBackend):
     def press_key(self, key: PressableKey) -> None:
         if not self.safe_pause.is_paused:
             self.calls.append(_BackendCall("press_key", (key,)))
+
+    def edit_focused_page_field(self, action: FocusedPageFieldAction) -> None:
+        if not self.safe_pause.is_paused:
+            self.calls.append(_BackendCall("edit_focused_page_field", (action,)))
 
 
 @dataclass
@@ -366,3 +370,35 @@ def test_g17_spike_repair_outputs() -> None:
     page = FakePagePort(unavailable=True)
     backend, _reports = _run_golden([_final(0, "type cloud storage")], page=page)
     assert backend.calls == [_BackendCall("type_focused", ("cloud storage",))]
+
+
+def test_g18_focused_field_edit_commands_flow_through_streaming_pipeline() -> None:
+    commands = (
+        ("unfocus app search bar", FocusedPageFieldAction.UNFOCUS),
+        ("delete line", FocusedPageFieldAction.DELETE_LINE),
+        ("clear search", FocusedPageFieldAction.CLEAR_SEARCH),
+        ("delete word", FocusedPageFieldAction.DELETE_WORD),
+    )
+    events = [_final(index, phrase) for index, (phrase, _action) in enumerate(commands)]
+
+    backend, reports = _run_golden(events)
+
+    assert backend.calls == [
+        _BackendCall("edit_focused_page_field", (action,)) for _phrase, action in commands
+    ]
+    assert all(report.outcome is StepOutcome.DONE for report in reports)
+
+
+def test_g19_focused_field_edits_obey_safe_pause() -> None:
+    backend, reports = _run_golden([_final(0, "delete line")], paused=True)
+
+    assert backend.calls == []
+    assert any(report.outcome is StepOutcome.SKIPPED_PAUSED for report in reports)
+
+
+def test_g20_edit_words_remain_literal_when_used_as_text_or_query() -> None:
+    typed, _typed_reports = _run_golden([_final(0, "type delete word")])
+    searched, _search_reports = _run_golden([_final(0, "search for delete word")])
+
+    assert typed.calls == [_BackendCall("type_focused", ("delete word",))]
+    assert searched.calls == [_BackendCall("search_web", ("delete word",))]

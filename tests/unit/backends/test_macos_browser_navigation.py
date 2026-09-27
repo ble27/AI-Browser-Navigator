@@ -13,6 +13,7 @@ def _backend_with_shortcut_recorder() -> tuple[MacOSInputBackend, list[tuple[str
     InputBackend.__init__(backend)
     shortcuts: list[tuple[str, ...]] = []
     backend._shortcut_sender = shortcuts.append
+    backend._navigation_target_is_focused = lambda: True
     return backend, shortcuts
 
 

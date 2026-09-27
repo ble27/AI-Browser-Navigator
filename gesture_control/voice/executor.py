@@ -290,7 +290,7 @@ class QueuedStepExecutor:
             self._deque = kept
 
 
-QueuedStepExecutor.__signature__ = inspect.Signature(
+QueuedStepExecutor.__signature__ = inspect.Signature(  # type: ignore[attr-defined]
     [
         inspect.Parameter("self", inspect.Parameter.POSITIONAL_OR_KEYWORD),
         inspect.Parameter("mapper", inspect.Parameter.POSITIONAL_OR_KEYWORD),

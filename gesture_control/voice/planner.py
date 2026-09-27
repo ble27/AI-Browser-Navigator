@@ -11,10 +11,13 @@ from gesture_control.voice.commands import parse_command
 from gesture_control.voice.desktop import (
     parse_app_command,
     parse_ask_command,
+    parse_chrome_omnibox_focus_command,
     parse_control_command,
+    parse_focused_page_field_command,
     parse_key_command,
     parse_type_command,
 )
+from gesture_control.voice.page import is_app_search_focus_command
 from gesture_control.voice.spans import extract_type_span, is_generic_input_target
 from gesture_control.voice.stream_contracts import (
     CancelStep,
@@ -84,6 +87,20 @@ class DeterministicClausePlanner:
         if parse_control_command(clause.text):
             return [CancelStep(source=clause)]
 
+        omnibox_focus = parse_chrome_omnibox_focus_command(clause.text)
+        if omnibox_focus is not None:
+            self._record_browser_focus()
+            return [ResolvedStep(source=clause, intent=omnibox_focus, ready=None)]
+
+        if is_app_search_focus_command(clause.text):
+            self._record_browser_focus()
+            return [PageStep(source=clause, phrase=clause.text, ready=None)]
+
+        field_action = parse_focused_page_field_command(clause.text)
+        if field_action is not None:
+            self._record_browser_focus()
+            return [ResolvedStep(source=clause, intent=field_action, ready=None)]
+
         key_intent = parse_key_command(clause.text)
         if key_intent is not None:
             return [ResolvedStep(source=clause, intent=key_intent, ready=self._readiness())]
@@ -124,6 +141,10 @@ class DeterministicClausePlanner:
             return steps
 
         command_intent = parse_command(clause.text)
+        # ``parse_command`` also supports legacy one-shot bare typing. The
+        # streaming path needs its PageStep fallback to preserve page matching.
+        if command_intent is not None and command_intent.kind is IntentType.TYPE_FOCUSED:
+            command_intent = None
         if command_intent is not None:
             if command_intent.kind is IntentType.OPEN_URL and command_intent.url:
                 ready = None
@@ -218,8 +239,16 @@ class DeterministicClausePlanner:
             self._session_app = app
             self._session_host = None
 
+    def _record_browser_focus(self) -> None:
+        """Forget stale readiness after user explicitly chooses a browser field."""
+        self._surface = Surface.BROWSER
+        self._line_host = None
+        self._line_app = None
+        self._session_host = None
+        self._session_app = None
 
-DeterministicClausePlanner.__signature__ = inspect.Signature(
+
+DeterministicClausePlanner.__signature__ = inspect.Signature(  # type: ignore[attr-defined]
     [
         inspect.Parameter("self", inspect.Parameter.POSITIONAL_OR_KEYWORD),
         inspect.Parameter(

@@ -160,6 +160,27 @@ See [`docs/CHROME_PAGE_BRIDGE.md`](docs/CHROME_PAGE_BRIDGE.md) and
 [`docs/WEBASSIGN_VOICE.md`](docs/WEBASSIGN_VOICE.md) for the one-time
 unpacked-extension setup and WebAssign answer/submit phrases.
 
+### Focus and compose fields
+
+Voice commands keep Chrome's browser UI separate from an app's HTML controls.
+
+- `focus Chrome search bar` focuses Chrome's **omnibox** (address/search bar).
+  `focus Chrome address bar` and `focus Chrome omnibox` are aliases.
+- `focus app search bar` focuses the active app's unique HTML search field.
+  It requires the Chrome page bridge; `focus page search field` is an alias.
+- After either focus command, `type <text>` enters literal text in that focused
+  field. `enter` or `done` submits it. No focus command types or submits text.
+- `unfocus` blurs a focused app search field or page composer; `delete line`
+  clears that field, `delete word` removes the word before the cursor, and
+  `clear search` clears only a focused search field. These commands require
+  the page bridge and do not match phrases such as `type delete word` or
+  `search for delete word`.
+
+"Chrome search bar" always means the omnibox. "App search bar" always means a
+web page's HTML field. This differs from `search for <text>` behavior,
+which searches a unique page field when available and otherwise searches the
+omnibox in one command.
+
 ### Enable live page click/type
 
 ```bash

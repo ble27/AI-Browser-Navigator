@@ -9,5 +9,6 @@ interface. No caller outside this package should ever call an
 """
 
 from gesture_control.actions.mapper import ActionMapper, Intent, IntentType
+from gesture_control.backends.base import FocusedPageFieldAction
 
-__all__ = ["ActionMapper", "Intent", "IntentType"]
+__all__ = ["ActionMapper", "FocusedPageFieldAction", "Intent", "IntentType"]

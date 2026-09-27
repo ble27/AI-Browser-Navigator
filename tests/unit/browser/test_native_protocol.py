@@ -74,6 +74,27 @@ def test_validate_request_accepts_only_fixed_operation_payloads() -> None:
     }
 
 
+def test_validate_request_accepts_guarded_focused_field_action() -> None:
+    assert validate_request(
+        {
+            "request_id": "r2",
+            "operation": "edit_focused_field",
+            "action": "delete_word",
+        }
+    ) == {
+        "request_id": "r2",
+        "operation": "edit_focused_field",
+        "action": "delete_word",
+    }
+
+
+def test_validate_request_rejects_unknown_focused_field_action() -> None:
+    with pytest.raises(ProtocolError, match="action"):
+        validate_request(
+            {"request_id": "r2", "operation": "edit_focused_field", "action": "delete_all"}
+        )
+
+
 @pytest.mark.parametrize(
     "response",
     [

@@ -24,6 +24,60 @@ all-black-stream diagnostic, but cannot verify hardware availability.
 
 ## Resolved
 
+### Chrome Native Messaging host rejected Chrome's extension-origin argument
+
+**Symptom**: `--dump-page` reported a disconnected bridge even though Chrome
+started the installed native host for the correct extension ID.
+
+**Cause**: Chrome appends the calling extension origin to the native-host
+command line. The Python host's argument parser rejected that positional
+argument and exited before connecting to the app's Unix socket.
+
+**Fix**: the native host now accepts and validates the optional
+`chrome-extension://<id>/` argument. The original failure changes from
+`Chrome page bridge is disconnected` to a page-specific response once the
+relay is connected. If that response says the receiving end does not exist,
+reload the active supported page so Chrome injects the content script.
+
+### Chrome page bridge stayed disconnected after native-host installation
+
+**Symptom**: `--dump-page` and page commands such as `focus app search bar`
+reported that the Chrome page bridge was disconnected, although the unpacked
+extension and native-host manifest were present.
+
+**Cause**: the installer resolved `.venv/bin/python` through its symlink and
+wrote the base Python interpreter into the launcher. That interpreter did not
+have `gesture_control` installed, so Chrome's native host exited at startup.
+
+**Fix**: the installer now preserves the virtualenv Python path. Existing
+installations must rerun `./scripts/setup_page_bridge.sh --extension-id <ID>`
+or `./.venv/bin/python scripts/manage_chrome_native_host.py install
+--extension-id <ID>`, then fully restart Chrome.
+
+### Chrome page bridge did not reconnect after its Manifest V3 worker slept
+
+**Symptom**: the native host and unpacked extension were correctly installed,
+but `--dump-page` still reported a disconnected bridge after Chrome started.
+
+**Cause**: the extension's Manifest V3 service worker can stop while idle.
+Its previous code only connected the native host while that worker happened to
+be running, leaving no path to reconnect when a page opened later.
+
+**Fix**: the content script now wakes the worker on every supported page load,
+and the worker also reconnects on Chrome startup and extension installation.
+Reload the unpacked extension once in `chrome://extensions`, then reload the
+target HTTPS tab. No native-host reinstall is needed for this fix.
+
+### `next browser`, `previous browser`, and `close browser` controlled the Voice control window
+
+**Symptom**: while streaming voice was active, browser navigation could reach
+the separate Chrome Web Speech control window instead of the user's browsing
+window. Tab switching and closing then affected the wrong window.
+
+**Fix**: macOS navigation now checks that a normal Google Chrome browsing
+window is frontmost before it sends a shortcut. It ignores commands when the
+Voice control window (titled "Gesture Control") or another app has focus.
+
 ### MediaPipe HandLandmarker aborts with "Service is unavailable" on `mediapipe==1.0.0`/`1.0.1`
 
 **Symptom**: `HandLandmarkerService()` (or `HandLandmarker.create_from_options`

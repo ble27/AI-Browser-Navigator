@@ -199,6 +199,28 @@ def test_focus_search_matches_unique_search_textbox() -> None:
     )
 
 
+def test_focus_app_search_bar_matches_only_unique_page_search_textbox() -> None:
+    elements = (
+        PageElement(element_id="search", role="textbox", name="Search Amazon"),
+        PageElement(element_id="email", role="textbox", name="Email"),
+    )
+
+    for phrase in ("focus app search bar", "focus page search field"):
+        assert resolve_page_command(phrase, elements) == Intent(
+            IntentType.FOCUS_ELEMENT,
+            target_id="search",
+        )
+
+
+def test_focus_app_search_bar_never_guesses_between_multiple_search_textboxes() -> None:
+    elements = (
+        PageElement(element_id="products", role="textbox", name="Search products"),
+        PageElement(element_id="orders", role="textbox", name="Search orders"),
+    )
+
+    assert resolve_page_command("focus app search bar", elements) is None
+
+
 def test_search_for_item_submits_through_page_search() -> None:
     elements = (
         PageElement(element_id="search", role="textbox", name="Search Amazon"),

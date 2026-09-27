@@ -64,7 +64,11 @@ def test_snapshot_url_allowlist_rejects_spoofs_and_non_loopback_http(url: str) -
         {"url": "https://x", "title": "t", "elements": "nope"},
         {"url": "https://x", "title": "t", "elements": [{"id": "", "role": "button", "name": "x"}]},
         {"url": "https://x", "title": "t", "elements": [{"id": "e1", "role": "div", "name": "x"}]},
-        {"url": "https://x", "title": "t", "elements": [{"id": "e1", "role": "button", "name": ""}]},
+        {
+            "url": "https://x",
+            "title": "t",
+            "elements": [{"id": "e1", "role": "button", "name": ""}],
+        },
         {
             "url": "https://x",
             "title": "t",

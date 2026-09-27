@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from gesture_control.actions import IntentType
-from gesture_control.backends.base import LaunchableApp, PressableKey
+from gesture_control.backends.base import FocusedPageFieldAction, LaunchableApp, PressableKey
 from gesture_control.voice.planner import DeterministicClausePlanner
 from gesture_control.voice.stream_contracts import (
     CancelStep,
@@ -70,6 +70,59 @@ def test_browser_control_does_not_inherit_session_host_readiness() -> None:
     assert isinstance(close_steps[0], ResolvedStep)
     assert close_steps[0].intent.kind is IntentType.CLOSE_TAB
     assert close_steps[0].ready is None
+
+
+def test_focus_chrome_search_bar_clears_stale_readiness() -> None:
+    planner = DeterministicClausePlanner()
+    planner.plan(_clause("open amazon", line_id=0))
+
+    steps = planner.plan(_clause("focus Chrome search bar", line_id=1))
+
+    assert isinstance(steps[0], ResolvedStep)
+    assert steps[0].intent.kind is IntentType.FOCUS_CHROME_OMNIBOX
+    assert steps[0].ready is None
+    enter = planner.plan(_clause("done", line_id=2))
+    assert isinstance(enter[0], ResolvedStep)
+    assert enter[0].ready is None
+
+
+def test_focus_app_search_bar_is_live_page_step_without_stale_readiness() -> None:
+    planner = DeterministicClausePlanner()
+    planner.plan(_clause("open amazon", line_id=0))
+
+    steps = planner.plan(_clause("focus app search bar", line_id=1))
+
+    assert isinstance(steps[0], PageStep)
+    assert steps[0].phrase == "focus app search bar"
+    assert steps[0].ready is None
+
+
+def test_focused_page_field_commands_are_immediate_and_clear_stale_readiness() -> None:
+    planner = DeterministicClausePlanner()
+    planner.plan(_clause("open amazon", line_id=0))
+
+    for index, (phrase, action) in enumerate(
+        (
+            ("unfocus", FocusedPageFieldAction.UNFOCUS),
+            ("delete line", FocusedPageFieldAction.DELETE_LINE),
+            ("clear search", FocusedPageFieldAction.CLEAR_SEARCH),
+            ("delete word", FocusedPageFieldAction.DELETE_WORD),
+        ),
+        start=1,
+    ):
+        step = planner.plan(_clause(phrase, line_id=index))[0]
+        assert isinstance(step, ResolvedStep)
+        assert step.intent.kind is IntentType.EDIT_FOCUSED_PAGE_FIELD
+        assert step.intent.field_action is action
+        assert step.ready is None
+
+
+def test_search_query_containing_delete_words_stays_a_search() -> None:
+    step = DeterministicClausePlanner().plan(_clause("search for delete word"))[0]
+
+    assert isinstance(step, ResolvedStep)
+    assert step.intent.kind is IntentType.SEARCH_WEB
+    assert step.intent.text == "delete word"
 
 
 def test_ask_macro_emits_three_steps() -> None:

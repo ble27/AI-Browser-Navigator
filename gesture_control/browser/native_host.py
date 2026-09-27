@@ -3,9 +3,11 @@
 from __future__ import annotations
 
 import argparse
+import re
 import socket
 import sys
 import threading
+import time
 from collections.abc import Sequence
 from pathlib import Path
 from typing import BinaryIO, cast
@@ -18,6 +20,62 @@ from gesture_control.browser.native_protocol import (
     validate_response,
     write_message,
 )
+
+# The extension normally starts at Chrome launch, while ``--voice`` or
+# ``--dump-page`` can start much later. Keep its one local process available
+# long enough for the app socket to appear without relying on an MV3 worker
+# timer surviving while idle.
+_SOCKET_CONNECT_TIMEOUT_S = 300.0
+_SOCKET_CONNECT_RETRY_S = 0.1
+_EXTENSION_ORIGIN_PATTERN = re.compile(r"chrome-extension://[a-p]{32}/")
+
+
+def _parse_extension_origin(value: str) -> str:
+    """Validate Chrome's Native Messaging caller-origin argument.
+
+    Args:
+        value: Origin passed by Chrome when it launches the native host.
+
+    Returns:
+        The validated extension origin.
+
+    Raises:
+        argparse.ArgumentTypeError: If the value is not a Chrome extension origin.
+    """
+    if _EXTENSION_ORIGIN_PATTERN.fullmatch(value) is None:
+        raise argparse.ArgumentTypeError("expected a chrome-extension:// origin")
+    return value
+
+
+def connect_to_app_socket(socket_path: Path) -> socket.socket:
+    """Connect to an app bridge socket, tolerating startup ordering.
+
+    Chrome can start its Native Messaging host before the Python app creates
+    its socket. Keep the host alive briefly so Chrome does not discard its
+    native port during that normal race.
+
+    Args:
+        socket_path: User-private Unix socket owned by ``ChromePageBridge``.
+
+    Returns:
+        Connected Unix-domain socket.
+
+    Raises:
+        OSError: If the socket remains unavailable for the bounded timeout.
+    """
+    deadline = time.monotonic() + _SOCKET_CONNECT_TIMEOUT_S
+    last_error: OSError | None = None
+    while time.monotonic() < deadline:
+        connection = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+        try:
+            connection.connect(str(socket_path))
+            return connection
+        except OSError as exc:
+            connection.close()
+            last_error = exc
+            time.sleep(_SOCKET_CONNECT_RETRY_S)
+    assert last_error is not None
+    raise last_error
 
 
 def relay_messages(
@@ -80,9 +138,12 @@ def build_parser() -> argparse.ArgumentParser:
     """Build the native host command-line parser.
 
     Returns:
-        Parser accepting an optional local socket path.
+        Parser accepting Chrome's caller origin and an optional local socket path.
     """
     parser = argparse.ArgumentParser(description=__doc__)
+    # Chrome appends the calling extension's origin to the native host command.
+    # Without this positional argument, argparse exits before the relay starts.
+    parser.add_argument("origin", nargs="?", type=_parse_extension_origin)
     parser.add_argument(
         "--socket",
         type=Path,
@@ -102,15 +163,16 @@ def main(argv: Sequence[str] | None = None) -> int:
         Process exit status.
     """
     args = build_parser().parse_args(argv)
-    connection = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+    connection: socket.socket | None = None
     try:
-        connection.connect(str(args.socket))
+        connection = connect_to_app_socket(args.socket)
         relay_messages(connection, sys.stdin.buffer, sys.stdout.buffer)
     except (OSError, ProtocolError) as exc:
         print(f"Chrome page bridge native host: {exc}", file=sys.stderr)
         return 1
     finally:
-        connection.close()
+        if connection is not None:
+            connection.close()
     return 0
 
 

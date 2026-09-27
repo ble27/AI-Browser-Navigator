@@ -7,6 +7,7 @@ from collections.abc import Iterator
 from pathlib import Path
 
 import pytest
+from gesture_control.backends.base import FocusedPageFieldAction
 from gesture_control.browser.bridge import (
     BridgeDisconnectedError,
     BridgeError,
@@ -69,6 +70,7 @@ def test_bridge_issues_all_fixed_operations(socket_dir: Path) -> None:
         {"ok": True, "result": {}},
         {"ok": True, "result": {}},
         {"ok": True, "result": {}},
+        {"ok": True, "result": {}},
     ]
 
     with ChromePageBridge(socket_path=socket_path, timeout=1.0) as bridge:
@@ -86,6 +88,7 @@ def test_bridge_issues_all_fixed_operations(socket_dir: Path) -> None:
         bridge.focus("nonce:1")
         bridge.type_text("nonce:1", "hello")
         bridge.type_and_submit("nonce:1", "send")
+        bridge.edit_focused_field(FocusedPageFieldAction.DELETE_WORD)
         relay.join(timeout=1.0)
 
     assert not errors
@@ -95,9 +98,11 @@ def test_bridge_issues_all_fixed_operations(socket_dir: Path) -> None:
         "focus",
         "type",
         "submit",
+        "edit_focused_field",
     ]
     assert requests[3]["text"] == "hello"
     assert requests[4]["text"] == "send"
+    assert requests[5]["action"] == "delete_word"
     assert not socket_path.exists()
     assert (socket_path.parent.stat().st_mode & 0o777) == 0o700
 

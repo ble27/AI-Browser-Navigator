@@ -116,6 +116,6 @@ class DeterministicClauseSegmenter:
         return Clause(text=clause_text, line_id=line_id, index=index, final=final)
 
 
-DeterministicClauseSegmenter.__signature__ = inspect.Signature(
+DeterministicClauseSegmenter.__signature__ = inspect.Signature(  # type: ignore[attr-defined]
     [inspect.Parameter("self", inspect.Parameter.POSITIONAL_OR_KEYWORD)],
 )

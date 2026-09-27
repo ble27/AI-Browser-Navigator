@@ -8,6 +8,8 @@ from collections.abc import Mapping
 from enum import StrEnum
 from typing import Any, BinaryIO
 
+from gesture_control.backends.base import FocusedPageFieldAction
+
 MAX_MESSAGE_BYTES = 1_048_576
 MAX_REQUEST_ID_LENGTH = 128
 MAX_TARGET_ID_LENGTH = 200
@@ -27,6 +29,7 @@ class Operation(StrEnum):
     FOCUS = "focus"
     TYPE = "type"
     SUBMIT = "submit"
+    EDIT_FOCUSED_FIELD = "edit_focused_field"
 
 
 def validate_request(message: object) -> dict[str, object]:
@@ -53,7 +56,17 @@ def validate_request(message: object) -> dict[str, object]:
 
     expected = {"request_id", "operation"}
     normalized: dict[str, object] = {"request_id": request_id, "operation": operation.value}
-    if operation is not Operation.SNAPSHOT:
+    if operation is Operation.EDIT_FOCUSED_FIELD:
+        expected.add("action")
+        raw_action = request.get("action")
+        if not isinstance(raw_action, str):
+            raise ProtocolError("action is unsupported")
+        try:
+            action = FocusedPageFieldAction(raw_action)
+        except ValueError as exc:
+            raise ProtocolError("action is unsupported") from exc
+        normalized["action"] = action.value
+    elif operation is not Operation.SNAPSHOT:
         expected.add("target_id")
         normalized["target_id"] = _bounded_string(
             request.get("target_id"), "target_id", MAX_TARGET_ID_LENGTH

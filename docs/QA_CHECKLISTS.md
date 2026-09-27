@@ -83,12 +83,26 @@ ordinary HTTPS page, and start `--voice`.
 
 - [ ] `click <accessible button/link name>` activates one unique named control.
 - [ ] `focus search` and `click the search box` focus the unique named textbox.
+- [ ] `focus Chrome search bar`, then `type unit test`, then `enter` or `done`
+      focuses Chrome's omnibox, writes literal text, and submits it.
+- [ ] `focus app search bar`, then `type unit test`, then `enter` or `done`
+      focuses one active-page HTML search field, writes text, and submits it.
+      With multiple page search fields, focus command does nothing.
+- [ ] In a supported page search field, `type hello world` then `delete word`
+      leaves `hello`; `delete line` clears the whole field; `clear search` also
+      clears it only when the active field is a search field.
+- [ ] In a supported page search field or named contenteditable composer,
+      `unfocus` removes focus without changing its text. The same commands do
+      nothing to an unrelated focused page element.
+- [ ] `type delete word` remains literal typing, and `search for delete word`
+      remains a search query; neither is consumed as an edit command.
 - [ ] `type <value> into <field>` replaces the named field value and dispatches
       normal input/change events.
 - [ ] On Amazon or another page with one named search textbox, `search for X`
       types and submits X; without a page search box it falls back to omnibox.
 - [ ] Ambiguous duplicate names do not guess or mutate the page.
-- [ ] Paused input blocks click, focus, type, and submit at the backend.
+- [ ] Paused input blocks click, focus, type, submit, and focused-field edits at
+      the backend.
 - [ ] Disconnecting/uninstalling the extension produces actionable feedback;
       browser-wide navigation/search/scroll commands continue working.
 
@@ -195,6 +209,10 @@ remain available via `--voice-stt`.
 - [ ] Control window opens, Start microphone shows **Listening**, and a spoken
       **next browser** (or **close browser** / **previous browser**) prints a
       step report without waiting on the current site.
+- [ ] With a normal Chrome browsing window focused, those navigation commands
+      affect only that window's active tab and do not change window focus.
+      With the Web Speech control window focused, they are ignored rather than
+      navigating or closing the control page.
 - [ ] On a page with one text box, **type what is your name into input** types
       that sentence. With the bridge disconnected, the same phrase still types
       into the focused field.

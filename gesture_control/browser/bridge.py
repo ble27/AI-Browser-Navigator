@@ -14,6 +14,7 @@ from types import TracebackType
 from typing import BinaryIO, Self, cast
 from urllib.parse import urlparse
 
+from gesture_control.backends.base import FocusedPageFieldAction
 from gesture_control.browser.native_protocol import (
     Operation,
     ProtocolError,
@@ -228,6 +229,17 @@ class ChromePageBridge:
         """
         self._request(Operation.FOCUS, target_id=target_id, timeout=timeout)
 
+    def edit_focused_field(
+        self, action: FocusedPageFieldAction, timeout: float | None = None
+    ) -> None:
+        """Apply a guarded edit to the active search field or page composer.
+
+        Args:
+            action: Fixed operation; the extension rejects unsupported focus targets.
+            timeout: Per-call timeout override.
+        """
+        self._request(Operation.EDIT_FOCUSED_FIELD, action=action, timeout=timeout)
+
     def type_text(self, target_id: str, text: str, timeout: float | None = None) -> None:
         """Replace a textbox value and dispatch input/change events.
 
@@ -254,6 +266,7 @@ class ChromePageBridge:
         *,
         target_id: str | None = None,
         text: str | None = None,
+        action: FocusedPageFieldAction | None = None,
         timeout: float | None = None,
     ) -> dict[str, object]:
         """Send one request and return its successful result object."""
@@ -269,6 +282,8 @@ class ChromePageBridge:
             request["target_id"] = target_id
         if text is not None:
             request["text"] = text
+        if action is not None:
+            request["action"] = action.value
         try:
             validated_request = validate_request(request)
         except ProtocolError as exc:

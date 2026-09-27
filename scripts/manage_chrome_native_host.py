@@ -65,7 +65,13 @@ def install(extension_id: str, *, home: Path, python: Path) -> tuple[Path, Path]
     """
     if EXTENSION_ID_PATTERN.fullmatch(extension_id) is None:
         raise ValueError("extension ID must be exactly 32 letters in the range a-p")
-    resolved_python = python.expanduser().resolve(strict=True)
+    # ``.venv/bin/python`` is normally a symlink to the base interpreter.
+    # Resolve it only to verify that it exists; Chrome must execute the venv
+    # path itself so Python loads that environment's installed packages.
+    selected_python = python.expanduser()
+    selected_python.resolve(strict=True)
+    if not selected_python.is_absolute():
+        selected_python = selected_python.absolute()
     installed_launcher = launcher_path(home)
     manifest = chrome_manifest_path(home)
     installed_launcher.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
@@ -73,7 +79,7 @@ def install(extension_id: str, *, home: Path, python: Path) -> tuple[Path, Path]
 
     launcher = (
         "#!/bin/sh\n"
-        f"exec {shlex.quote(str(resolved_python))} "
+        f"exec {shlex.quote(str(selected_python))} "
         '-m gesture_control.browser.native_host "$@"\n'
     )
     _atomic_write(installed_launcher, launcher, mode=0o700)

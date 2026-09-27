@@ -20,8 +20,10 @@ class _Bridge:
         self._elements = elements
         self._disconnected = disconnected
         self.snapshot_calls = 0
+        self.snapshot_timeouts: list[float | None] = []
 
-    def snapshot(self) -> PageSnapshot:
+    def snapshot(self, timeout: float | None = None) -> PageSnapshot:
+        self.snapshot_timeouts.append(timeout)
         self.snapshot_calls += 1
         if self._disconnected:
             raise BridgeDisconnectedError("extension unavailable")
@@ -49,6 +51,18 @@ def test_search_resolves_to_page_search_before_omnibox_fallback() -> None:
         target_id="search",
         text="mechanical keyboard",
     )
+
+
+def test_current_url_polls_with_a_short_bridge_timeout() -> None:
+    """The executor's readiness loop polls current_url() repeatedly; a
+    disconnected bridge must fail each poll quickly, not block for the
+    bridge's full multi-second default connect timeout."""
+    bridge = _Bridge((), disconnected=True)
+    resolver = LivePageCommandResolver(bridge)  # type: ignore[arg-type]
+
+    assert resolver.current_url() is None
+
+    assert bridge.snapshot_timeouts == [pytest.approx(0.3)]
 
 
 def test_disconnected_search_falls_back_but_click_reports_bridge_error() -> None:

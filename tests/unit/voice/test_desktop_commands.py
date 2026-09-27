@@ -3,11 +3,14 @@
 from __future__ import annotations
 
 from gesture_control.actions import Intent, IntentType
-from gesture_control.backends.base import LaunchableApp, PressableKey
+from gesture_control.backends.base import FocusedPageFieldAction, LaunchableApp, PressableKey
+from gesture_control.voice.commands import parse_command
 from gesture_control.voice.desktop import (
     parse_app_command,
     parse_ask_command,
+    parse_chrome_omnibox_focus_command,
     parse_control_command,
+    parse_focused_page_field_command,
     parse_key_command,
     parse_type_command,
 )
@@ -27,6 +30,61 @@ def test_parse_key_command_beats_page_press() -> None:
 def test_parse_key_command_accepts_click_and_return_phrasing() -> None:
     for phrase in ("click enter", "tap enter", "hit return", "press return", "click return"):
         assert parse_key_command(phrase) == Intent(IntentType.PRESS_KEY, key=PressableKey.ENTER)
+
+
+def test_parse_key_command_accepts_bare_enter_and_done() -> None:
+    for phrase in ("enter", "done"):
+        assert parse_key_command(phrase) == Intent(IntentType.PRESS_KEY, key=PressableKey.ENTER)
+
+
+def test_parse_chrome_omnibox_focus_command_is_explicit() -> None:
+    for phrase in (
+        "focus Chrome search bar",
+        "focus Chrome address bar",
+        "focus Chrome omnibox",
+    ):
+        assert parse_chrome_omnibox_focus_command(phrase) == Intent(IntentType.FOCUS_CHROME_OMNIBOX)
+    assert parse_chrome_omnibox_focus_command("focus app search bar") is None
+
+
+def test_focused_page_field_commands_are_exact_and_targeted() -> None:
+    for phrase in ("unfocus", "unfocus app search bar", "unfocus composer"):
+        assert parse_focused_page_field_command(phrase) == Intent(
+            IntentType.EDIT_FOCUSED_PAGE_FIELD,
+            field_action=FocusedPageFieldAction.UNFOCUS,
+        )
+    assert parse_focused_page_field_command("delete line") == Intent(
+        IntentType.EDIT_FOCUSED_PAGE_FIELD,
+        field_action=FocusedPageFieldAction.DELETE_LINE,
+    )
+    for phrase in ("clear search", "clear search bar", "delete search"):
+        assert parse_focused_page_field_command(phrase) == Intent(
+            IntentType.EDIT_FOCUSED_PAGE_FIELD,
+            field_action=FocusedPageFieldAction.CLEAR_SEARCH,
+        )
+    for phrase in ("delete word", "delete previous word"):
+        assert parse_focused_page_field_command(phrase) == Intent(
+            IntentType.EDIT_FOCUSED_PAGE_FIELD,
+            field_action=FocusedPageFieldAction.DELETE_WORD,
+        )
+    assert parse_focused_page_field_command("unfocus notes") is None
+
+
+def test_delete_commands_do_not_filter_literal_dictation_or_searches() -> None:
+    assert parse_command("type delete word") == Intent(
+        IntentType.TYPE_FOCUSED,
+        text="delete word",
+    )
+    assert parse_command("search for delete word") == Intent(
+        IntentType.SEARCH_WEB,
+        text="delete word",
+    )
+
+
+def test_one_shot_parser_supports_focus_compose_sequence_phrases() -> None:
+    assert parse_command("focus Chrome search bar") == Intent(IntentType.FOCUS_CHROME_OMNIBOX)
+    assert parse_command("type hello world") == Intent(IntentType.TYPE_FOCUSED, text="hello world")
+    assert parse_command("done") == Intent(IntentType.PRESS_KEY, key=PressableKey.ENTER)
 
 
 def test_parse_app_command_open_notes() -> None:

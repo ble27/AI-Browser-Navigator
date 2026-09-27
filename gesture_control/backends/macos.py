@@ -11,6 +11,7 @@ from urllib.parse import urlparse
 
 from gesture_control.backends.base import (
     BrowserAction,
+    FocusedPageFieldAction,
     InputBackend,
     LaunchableApp,
     PressableKey,
@@ -55,6 +56,55 @@ def _open_url_in_google_chrome(url: str) -> None:
     # ``open -a "Google Chrome"`` pins Chrome specifically; the default
     # ``open url`` / webbrowser path would use the user's default browser.
     subprocess.run(["open", "-a", "Google Chrome", url], check=False)
+
+
+# The Web Speech control page's own <title>; navigation must never send its
+# browser shortcuts to this separate Chrome app window.
+_VOICE_CONTROL_WINDOW_HINT = "Gesture Control"
+
+
+def _frontmost_window_title() -> str | None:
+    """Return the frontmost process name and window title via AppleScript."""
+    result = subprocess.run(
+        [
+            "osascript",
+            "-e",
+            (
+                'tell application "System Events"\n'
+                "set p to first application process whose frontmost is true\n"
+                "set procName to name of p\n"
+                "try\n"
+                "set winName to name of front window of p\n"
+                "on error\n"
+                'set winName to "<no window>"\n'
+                "end try\n"
+                'return procName & " | " & winName\n'
+                "end tell"
+            ),
+        ],
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    return result.stdout.strip() or None
+
+
+def _browsing_chrome_window_is_focused() -> bool:
+    """Return whether a normal Google Chrome browsing window owns focus.
+
+    Returns:
+        ``True`` only when the frontmost window is Google Chrome and is not
+        the separate Web Speech control page.
+    """
+    frontmost = _frontmost_window_title()
+    if frontmost is None:
+        return False
+    process, _, title = frontmost.partition(" | ")
+    return (
+        process == "Google Chrome"
+        and bool(title)
+        and _VOICE_CONTROL_WINDOW_HINT.casefold() not in title.casefold()
+    )
 
 
 def _send_pynput_shortcut(keys: tuple[str, ...]) -> None:
@@ -202,6 +252,13 @@ class _MissingPageBridge:
         del target_id, text, timeout
         raise RuntimeError("No Chrome page bridge is connected; cannot submit page text.")
 
+    def edit_focused_field(
+        self, action: FocusedPageFieldAction, timeout: float | None = None
+    ) -> None:
+        """Refuse a focused-field edit when no bridge is connected."""
+        del action, timeout
+        raise RuntimeError("No Chrome page bridge is connected; cannot edit a page field.")
+
 
 class PageBridge(Protocol):
     """Fixed page operations a Chrome bridge may perform."""
@@ -221,6 +278,11 @@ class PageBridge(Protocol):
     def type_and_submit(self, target_id: str, text: str, timeout: float | None = None) -> None:
         """Insert and submit literal text through this element."""
 
+    def edit_focused_field(
+        self, action: FocusedPageFieldAction, timeout: float | None = None
+    ) -> None:
+        """Apply a guarded edit to the active search field or page composer."""
+
 
 class MacOSInputBackend(InputBackend):
     """Inject mouse input through pynput on macOS."""
@@ -233,6 +295,7 @@ class MacOSInputBackend(InputBackend):
         shortcut_sender: Callable[[tuple[str, ...]], None] | None = None,
         search_sender: Callable[[str], None] | None = None,
         scroll_sender: Callable[[int], None] | None = None,
+        navigation_target_is_focused: Callable[[], bool] | None = None,
     ) -> None:
         """Create a macOS mouse controller.
 
@@ -248,6 +311,9 @@ class MacOSInputBackend(InputBackend):
                 pynput.
             scroll_sender: Optional signed native-notch injector. Defaults to
                 pynput.
+            navigation_target_is_focused: Optional check that a normal browsing
+                Chrome window already has focus. Navigation is ignored when
+                the Web Speech control window or another app is frontmost.
         """
         super().__init__(safe_pause=safe_pause)
         from pynput import mouse
@@ -264,6 +330,11 @@ class MacOSInputBackend(InputBackend):
             search_sender if search_sender is not None else _search_web_with_pynput
         )
         self._scroll_sender = scroll_sender if scroll_sender is not None else _scroll_with_pynput
+        self._navigation_target_is_focused = (
+            navigation_target_is_focused
+            if navigation_target_is_focused is not None
+            else _browsing_chrome_window_is_focused
+        )
 
     def screen_size(self) -> tuple[int, int]:
         """Return the primary screen dimensions in pixels."""
@@ -311,12 +382,26 @@ class MacOSInputBackend(InputBackend):
     def navigate_browser(self, action: BrowserAction) -> None:
         """Send a fixed Google Chrome navigation shortcut when input is enabled.
 
+        The command only applies to an already focused normal Chrome browsing
+        window. It never changes focus to choose a target, and ignores the
+        command while the Web Speech control window is frontmost.
+
         Args:
             action: Typed browser navigation operation.
         """
         if self.safe_pause.is_paused:
             return
+        if not self._navigation_target_is_focused():
+            return
         self._shortcut_sender(_CHROME_SHORTCUTS[action])
+
+    def focus_chrome_omnibox(self) -> None:
+        """Focus Chrome's omnibox when a normal browsing window is focused."""
+        if self.safe_pause.is_paused:
+            return
+        if not self._navigation_target_is_focused():
+            return
+        self._shortcut_sender(("cmd", "l"))
 
     def search_web(self, text: str) -> None:
         """Search the active page when possible, otherwise the Chrome omnibox.
@@ -374,6 +459,22 @@ class MacOSInputBackend(InputBackend):
         if self.safe_pause.is_paused:
             return
         self._page_bridge.focus(target_id)
+
+    def edit_focused_page_field(self, action: FocusedPageFieldAction) -> None:
+        """Edit only a supported active search field or page composer.
+
+        Args:
+            action: Fixed operation validated again by the content script.
+
+        Raises:
+            ValueError: If the page bridge is absent or rejects the active field.
+        """
+        if self.safe_pause.is_paused:
+            return
+        try:
+            self._page_bridge.edit_focused_field(action)
+        except RuntimeError as exc:
+            raise ValueError(str(exc)) from exc
 
     def submit_text(self, target_id: str, text: str) -> None:
         """Type and submit through an indexed field when the gate is open."""

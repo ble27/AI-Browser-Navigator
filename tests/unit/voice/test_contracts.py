@@ -6,7 +6,6 @@ import importlib
 import inspect
 from dataclasses import fields
 
-import pytest
 from gesture_control.actions.mapper import Intent, IntentType
 from gesture_control.backends.base import LaunchableApp, PressableKey
 from gesture_control.voice import asr_repair

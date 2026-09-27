@@ -2,8 +2,14 @@
 
 from __future__ import annotations
 
-from gesture_control.actions import Intent
+from gesture_control.actions import Intent, IntentType
 from gesture_control.voice.browser import parse_browser_command
+from gesture_control.voice.desktop import (
+    parse_chrome_omnibox_focus_command,
+    parse_focused_page_field_command,
+    parse_key_command,
+    parse_type_command,
+)
 from gesture_control.voice.navigation import parse_browser_navigation_command
 from gesture_control.voice.scroll import parse_scroll_command
 from gesture_control.voice.search import parse_search_command
@@ -21,9 +27,21 @@ def parse_command(
             plain scroll commands only.
 
     Returns:
-        An open-URL or browser-navigation intent, or ``None`` when no
+        A supported desktop or browser intent, or ``None`` when no
         deterministic grammar recognizes the complete phrase.
     """
+    omnibox_focus = parse_chrome_omnibox_focus_command(transcript)
+    if omnibox_focus is not None:
+        return omnibox_focus
+    field_action = parse_focused_page_field_command(transcript)
+    if field_action is not None:
+        return field_action
+    key_intent = parse_key_command(transcript)
+    if key_intent is not None:
+        return key_intent
+    type_request = parse_type_command(transcript)
+    if type_request is not None and not type_request.has_target:
+        return Intent(IntentType.TYPE_FOCUSED, text=type_request.text)
     navigation_intent = parse_browser_navigation_command(transcript)
     if navigation_intent is not None:
         return navigation_intent

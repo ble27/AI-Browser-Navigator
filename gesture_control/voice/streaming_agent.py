@@ -323,7 +323,7 @@ class StreamingVoiceAgent:
 
 # Keep the Phase 1 constructor pin: only the five public ports + output.
 # Extra kwargs are keyword-only and do not change the positional contract.
-StreamingVoiceAgent.__signature__ = inspect.Signature(
+StreamingVoiceAgent.__signature__ = inspect.Signature(  # type: ignore[attr-defined]
     [
         inspect.Parameter("self", inspect.Parameter.POSITIONAL_OR_KEYWORD),
         inspect.Parameter("transcriber", inspect.Parameter.POSITIONAL_OR_KEYWORD),

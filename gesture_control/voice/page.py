@@ -30,6 +30,7 @@ _CLICK_VERBS = frozenset(
     }
 )
 _FOCUS_VERBS = frozenset({"focus", "select", "highlight"})
+_APP_SEARCH_FOCUS_PHRASES = frozenset({"focus app search bar", "focus page search field"})
 _FIELD_SUFFIXES = frozenset({"box", "field", "textbox", "button", "link"})
 _SUBMIT_NAME_TOKENS = frozenset({"submit", "submit answer", "submit answers", "check answer"})
 _ANSWER_FIELD_TOKENS = frozenset({"answer", "answers", "response", "responses"})
@@ -116,6 +117,9 @@ def resolve_page_command(transcript: str, elements: tuple[PageElement, ...]) -> 
     if not collapsed:
         return None
 
+    if is_app_search_focus_command(collapsed):
+        return _resolve_app_search_focus(elements)
+
     tokens = collapsed.split()
     folded = [token.casefold().strip(".,!?") for token in tokens]
     verb = folded[0]
@@ -140,6 +144,27 @@ def resolve_page_command(transcript: str, elements: tuple[PageElement, ...]) -> 
     if verb in {"search", "lookup"} or (verb == "look" and len(tokens) > 1):
         return _resolve_search(tokens, elements)
     return None
+
+
+def is_app_search_focus_command(transcript: str) -> bool:
+    """Return whether transcript explicitly targets an active-page search field.
+
+    This phrase is deliberately separate from Chrome omnibox terminology.
+    """
+    collapsed = " ".join(transcript.split()).casefold().strip(".,!?")
+    return collapsed in _APP_SEARCH_FOCUS_PHRASES
+
+
+def _resolve_app_search_focus(elements: tuple[PageElement, ...]) -> Intent | None:
+    """Focus one uniquely named active-page search textbox."""
+    matches = [
+        element
+        for element in elements
+        if element.role in _TYPEABLE_ROLES and "search" in _normalize_name(element.name).casefold()
+    ]
+    if len(matches) != 1:
+        return None
+    return Intent(IntentType.FOCUS_ELEMENT, target_id=matches[0].element_id)
 
 
 def _resolve_homework(

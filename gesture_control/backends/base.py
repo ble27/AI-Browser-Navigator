@@ -43,6 +43,15 @@ class PressableKey(StrEnum):
     SELECT_ALL = "cmd+a"
 
 
+class FocusedPageFieldAction(StrEnum):
+    """Edits restricted to the active page's search field or text composer."""
+
+    UNFOCUS = "unfocus"
+    DELETE_LINE = "delete_line"
+    CLEAR_SEARCH = "clear_search"
+    DELETE_WORD = "delete_word"
+
+
 class BrowserAction(StrEnum):
     """Browser-level navigation operations supported by input backends."""
 
@@ -179,6 +188,14 @@ class InputBackend(ABC):
         """
         raise NotImplementedError("This backend does not support focusing page elements.")
 
+    def edit_focused_page_field(self, action: FocusedPageFieldAction) -> None:
+        """Apply one guarded edit to a supported active page field.
+
+        Args:
+            action: Unfocus, clear, or delete-word operation to apply.
+        """
+        raise NotImplementedError("This backend does not support active page field edits.")
+
     def submit_text(self, target_id: str, text: str) -> None:
         """Type and submit text through a page field unless input is paused.
 
@@ -187,6 +204,14 @@ class InputBackend(ABC):
             text: Literal text to enter and submit.
         """
         raise NotImplementedError("This backend does not support submitting page text.")
+
+    def focus_chrome_omnibox(self) -> None:
+        """Focus Chrome's omnibox unless input injection is paused.
+
+        Implementations must only target a focused normal Chrome browsing
+        window. They must not redirect input to a voice-control window.
+        """
+        raise NotImplementedError("This backend does not support focusing Chrome's omnibox.")
 
     def open_app(self, app: LaunchableApp) -> None:
         """Activate a native application unless input injection is paused.

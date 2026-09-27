@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import math
 import queue
 import threading
 import time
@@ -35,7 +36,7 @@ def _rms(samples: list[float]) -> float:
     total = 0.0
     for value in samples:
         total += value * value
-    return (total / len(samples)) ** 0.5
+    return math.sqrt(total / len(samples))
 
 
 class MlxWhisperStreamingTranscriber:

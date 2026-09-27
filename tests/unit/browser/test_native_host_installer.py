@@ -50,7 +50,7 @@ def test_installer_writes_allowlisted_manifest_and_executable_launcher(tmp_path:
     assert launcher.is_file()
     assert os.access(launcher, os.X_OK)
     launcher_text = launcher.read_text(encoding="utf-8")
-    assert str(Path(sys.executable).resolve()) in launcher_text
+    assert str(Path(sys.executable)) in launcher_text
     assert "-m gesture_control.browser.native_host" in launcher_text
 
     uninstall_result = _run_installer(repo_root, tmp_path, "uninstall")
