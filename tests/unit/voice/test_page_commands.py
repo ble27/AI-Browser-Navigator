@@ -210,3 +210,55 @@ def test_ambiguous_partial_field_name_never_guesses() -> None:
 
     assert resolve_page_command("focus search", elements) is None
     assert resolve_page_command("search for keyboard", elements) is None
+
+
+def test_incomplete_and_empty_phrases_never_crash() -> None:
+    elements = (
+        PageElement(element_id="e1", role="button", name="Submit"),
+        PageElement(element_id="e2", role="textbox", name="Email"),
+    )
+
+    for phrase in (
+        "",
+        "   ",
+        "click",
+        "click on",
+        "type into email",
+        "type hello into",
+        "fill with hello",
+        "fill email with",
+        "search",
+        "search for",
+        "look up",
+        "mouse click",
+        "left click",
+        "answer is",
+        "the answer is",
+    ):
+        assert resolve_page_command(phrase, elements) is None
+
+
+def test_trailing_punctuation_still_matches_click_targets() -> None:
+    elements = (PageElement(element_id="e1", role="button", name="Submit"),)
+
+    assert resolve_page_command("click submit!!!", elements) == Intent(
+        IntentType.CLICK_ELEMENT, target_id="e1"
+    )
+
+
+def test_typed_text_may_contain_the_word_into() -> None:
+    elements = (PageElement(element_id="email", role="textbox", name="Email"),)
+
+    assert resolve_page_command("type walk into town into email", elements) == Intent(
+        IntentType.TYPE_TEXT,
+        target_id="email",
+        text="walk into town",
+    )
+
+
+def test_checkbox_is_clickable_by_name() -> None:
+    elements = (PageElement(element_id="e3", role="checkbox", name="Remember me"),)
+
+    assert resolve_page_command("click remember me", elements) == Intent(
+        IntentType.CLICK_ELEMENT, target_id="e3"
+    )

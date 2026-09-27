@@ -6,6 +6,7 @@ lxml, browser automation, or network I/O.
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
 from html.parser import HTMLParser
 
@@ -32,6 +33,10 @@ _FIELD_SUFFIXES = frozenset({"box", "field", "textbox", "button", "link"})
 _SUBMIT_NAME_TOKENS = frozenset({"submit", "submit answer", "submit answers", "check answer"})
 _ANSWER_FIELD_TOKENS = frozenset({"answer", "answers", "response", "responses"})
 _CLICK_PREFIX_SKIP = frozenset({"on", "the", "a", "an"})
+# Match chrome_extension content_script humanizeIdentifier: only split a→A.
+_CAMEL_BOUNDARY = re.compile(r"([a-z])([A-Z])")
+# Keep speakable names bounded even when pages dump huge data-label values.
+_MAX_ELEMENT_NAME_CHARS = 500
 _ORDINALS = {
     "first": 1,
     "1st": 1,
@@ -166,6 +171,8 @@ def _resolve_homework(
             text = " ".join(original_rest[1:]).strip()
             if text:
                 return _answer_text_intent(text, elements, ordinal=None)
+            # "answer is" / "answer with" without a value is incomplete.
+            return None
         # Bare "answer 42" types into the unique answer field when possible.
         if rest:
             text = " ".join(original_rest).strip()
@@ -454,13 +461,11 @@ def _seo_attr_name(attr_map: dict[str, str]) -> str:
         if not value:
             continue
         humanized = value.replace("_", " ").replace("-", " ")
-        # itemprop values are often camelCase product names.
-        spaced = "".join(
-            f" {char}" if char.isupper() and index else char for index, char in enumerate(humanized)
-        )
+        # Match the extension: split camelCase only at a→A, keep acronyms intact.
+        spaced = _CAMEL_BOUNDARY.sub(r"\1 \2", humanized)
         name = _normalize_name(spaced)
         if name:
-            return name
+            return name[:_MAX_ELEMENT_NAME_CHARS]
     return ""
 
 
@@ -498,12 +503,20 @@ class _PageIndexParser(HTMLParser):
         # visible fallback text, when an author-provided label is set.
         labeled = _normalize_name(aria_label) if aria_label is not None else None
 
+        if tag == "img" and self._stack:
+            # Icon-only buttons/links often expose speakable text only via alt.
+            alt = _normalize_name(attr_map.get("alt", ""))
+            if alt:
+                self._stack[-1][2].append(alt)
+            return
+
         if tag == "input":
             input_type = (attr_map.get("type") or "text").casefold()
             if input_type in {"button", "submit", "reset", "image"}:
                 name = (
                     labeled
                     or _normalize_name(attr_map.get("value", ""))
+                    or _normalize_name(attr_map.get("alt", ""))
                     or _seo_attr_name(attr_map)
                     or _normalize_name(attr_map.get("name", ""))
                 )
@@ -602,6 +615,7 @@ class _PageIndexParser(HTMLParser):
             role: Accessibility role for the element.
             name: Non-empty accessible name.
         """
+        trimmed = name[:_MAX_ELEMENT_NAME_CHARS]
         element_id = f"e{self._next_id}"
         self._next_id += 1
-        self.elements.append(PageElement(element_id=element_id, role=role, name=name))
+        self.elements.append(PageElement(element_id=element_id, role=role, name=trimmed))

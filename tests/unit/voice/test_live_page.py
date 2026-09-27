@@ -61,6 +61,29 @@ def test_disconnected_search_falls_back_but_click_reports_bridge_error() -> None
         resolver.resolve("click add to cart")
 
 
+@pytest.mark.parametrize(
+    "phrase",
+    [
+        "hit submit",
+        "pick the submit",
+        "push submit",
+        "mouse click on submit",
+        "left click submit",
+        "write hello into email",
+        "fill email with hello",
+        "type hello into email",
+        "tap checkout",
+    ],
+)
+def test_disconnected_everyday_page_verbs_report_bridge_error(phrase: str) -> None:
+    """Explicit page mutations must not silently no-op when the bridge is down."""
+    bridge = _Bridge((), disconnected=True)
+    resolver = LivePageCommandResolver(bridge)  # type: ignore[arg-type]
+
+    with pytest.raises(PageCommandUnavailableError, match="extension unavailable"):
+        resolver.resolve(phrase)
+
+
 def test_warm_snapshot_is_reused_once_by_resolve() -> None:
     bridge = _Bridge((PageElement("btn", "button", "Submit Answer"),))
     resolver = LivePageCommandResolver(bridge)  # type: ignore[arg-type]
@@ -77,3 +100,30 @@ def test_warm_snapshot_is_reused_once_by_resolve() -> None:
         target_id="btn",
     )
     assert bridge.snapshot_calls == 2
+
+
+def test_ranked_click_orders_alias() -> None:
+    """Soft-rank maps spoken 'orders' onto Amazon-style labels."""
+    bridge = _Bridge(
+        (
+            PageElement("e1", "link", "Account & Lists"),
+            PageElement("e2", "link", "Returns & Orders"),
+            PageElement("e3", "link", "Cart"),
+        ),
+    )
+    resolver = LivePageCommandResolver(bridge)  # type: ignore[arg-type]
+    assert resolver.resolve("click orders") == Intent(
+        IntentType.CLICK_ELEMENT,
+        target_id="e2",
+    )
+
+
+def test_ranked_click_fails_closed_when_ambiguous() -> None:
+    bridge = _Bridge(
+        (
+            PageElement("e1", "link", "Orders today"),
+            PageElement("e2", "link", "Orders yesterday"),
+        ),
+    )
+    resolver = LivePageCommandResolver(bridge)  # type: ignore[arg-type]
+    assert resolver.resolve("click orders") is None

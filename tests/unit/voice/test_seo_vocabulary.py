@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from gesture_control.actions import Intent, IntentType
 from gesture_control.browser.bridge import PageSeoMeta, _parse_seo_meta, _parse_snapshot
-from gesture_control.voice.page import PageElement, index_html, resolve_page_command
+from gesture_control.voice.page import PageElement, _seo_attr_name, index_html, resolve_page_command
 
 
 def test_index_html_uses_data_label_and_itemprop() -> None:
@@ -18,6 +18,31 @@ def test_index_html_uses_data_label_and_itemprop() -> None:
     assert "Add to Bag" in names
     assert "checkout" in names
     assert "Promo code" in names
+
+
+def test_index_html_uses_nested_image_alt_for_icon_only_controls() -> None:
+    elements = index_html(
+        '<button><img alt="Buy now"></button>'
+        '<a href="/home"><img alt="Home logo"></a>'
+        '<input type="image" alt="Search submit">'
+    )
+
+    names = {element.name for element in elements}
+    assert names == {"Buy now", "Home logo", "Search submit"}
+
+
+def test_seo_attr_name_splits_camel_case_like_the_extension() -> None:
+    assert _seo_attr_name({"itemprop": "addToCart"}) == "add To Cart"
+    assert _seo_attr_name({"itemprop": "URL"}) == "URL"
+    # Extension only splits a→A, so leading acronyms stay glued to the next capital.
+    assert _seo_attr_name({"itemprop": "XMLHttpRequest"}) == "XMLHttp Request"
+
+
+def test_index_html_caps_extremely_long_data_labels() -> None:
+    elements = index_html(f'<button data-label="{"x" * 2000}">Go</button>')
+
+    assert len(elements) == 1
+    assert len(elements[0].name) == 500
 
 
 def test_everyday_click_verbs_map_to_click_intent() -> None:

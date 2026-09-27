@@ -20,6 +20,18 @@ def test_answer_is_types_into_unique_answer_field() -> None:
     )
 
 
+def test_incomplete_answer_phrases_do_not_type_the_separator() -> None:
+    """Bare ``answer is`` must not type the word ``is`` into a field."""
+    elements = (
+        PageElement("a1", "textbox", "Answer"),
+        PageElement("s1", "button", "Submit Answer"),
+    )
+
+    assert resolve_page_command("answer is", elements) is None
+    assert resolve_page_command("the answer is", elements) is None
+    assert resolve_page_command("answer with", elements) is None
+
+
 def test_answer_falls_back_to_sole_textbox() -> None:
     elements = (PageElement("only", "textbox", "Response"),)
 

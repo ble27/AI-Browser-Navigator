@@ -12,6 +12,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from types import TracebackType
 from typing import BinaryIO, Self, cast
+from urllib.parse import urlparse
 
 from gesture_control.browser.native_protocol import (
     Operation,
@@ -23,6 +24,12 @@ from gesture_control.browser.native_protocol import (
 )
 
 DEFAULT_TIMEOUT_SECONDS = 5.0
+# Bound snapshot strings so a buggy/compromised extension cannot flood the app.
+_MAX_SNAPSHOT_URL_CHARS = 2_000
+_MAX_SNAPSHOT_TITLE_CHARS = 500
+_MAX_ELEMENT_ID_CHARS = 200
+_MAX_ELEMENT_NAME_CHARS = 500
+_LOOPBACK_HTTP_HOSTS = frozenset({"127.0.0.1", "localhost"})
 
 
 class BridgeError(RuntimeError):
@@ -400,7 +407,13 @@ def _parse_snapshot(result: dict[str, object]) -> PageSnapshot:
     url = result["url"]
     title = result["title"]
     raw_elements = result["elements"]
-    if not isinstance(url, str) or not _is_allowed_snapshot_url(url) or not isinstance(title, str):
+    if (
+        not isinstance(url, str)
+        or len(url) > _MAX_SNAPSHOT_URL_CHARS
+        or not _is_allowed_snapshot_url(url)
+        or not isinstance(title, str)
+        or len(title) > _MAX_SNAPSHOT_TITLE_CHARS
+    ):
         raise BridgeError("Chrome returned invalid page metadata")
     if not isinstance(raw_elements, list):
         raise BridgeError("Chrome returned invalid page elements")
@@ -414,9 +427,11 @@ def _parse_snapshot(result: dict[str, object]) -> PageSnapshot:
         if (
             not isinstance(element_id, str)
             or not element_id
+            or len(element_id) > _MAX_ELEMENT_ID_CHARS
             or role not in {"button", "link", "textbox", "checkbox"}
             or not isinstance(name, str)
             or not name
+            or len(name) > _MAX_ELEMENT_NAME_CHARS
         ):
             raise BridgeError("Chrome returned an invalid page element")
         assert isinstance(role, str)
@@ -426,10 +441,28 @@ def _parse_snapshot(result: dict[str, object]) -> PageSnapshot:
 
 
 def _is_allowed_snapshot_url(url: str) -> bool:
-    """Return whether a snapshot URL is an allowed live or local fixture origin."""
-    if url.startswith("https://"):
+    """Return whether a snapshot URL is an allowed live or local fixture origin.
+
+    HTTPS pages from any host are accepted (Chrome already loaded them). Plain
+    HTTP is restricted to exact loopback hosts so prefix spoofs such as
+    ``http://127.0.0.1.evil.com`` or userinfo forms like
+    ``http://127.0.0.1@evil.com`` cannot pass a naive ``startswith`` check.
+    """
+    try:
+        parsed = urlparse(url)
+    except ValueError:
+        return False
+    if parsed.username is not None or parsed.password is not None:
+        return False
+    scheme = parsed.scheme.casefold()
+    hostname = (parsed.hostname or "").casefold()
+    if not hostname:
+        return False
+    if scheme == "https":
         return True
-    return url.startswith("http://127.0.0.1") or url.startswith("http://localhost")
+    if scheme == "http":
+        return hostname in _LOOPBACK_HTTP_HOSTS
+    return False
 
 
 def _parse_seo_meta(raw: object) -> PageSeoMeta:
