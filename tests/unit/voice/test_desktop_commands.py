@@ -24,6 +24,11 @@ def test_parse_key_command_beats_page_press() -> None:
     assert intent == Intent(IntentType.PRESS_KEY, key=PressableKey.ENTER)
 
 
+def test_parse_key_command_accepts_click_and_return_phrasing() -> None:
+    for phrase in ("click enter", "tap enter", "hit return", "press return", "click return"):
+        assert parse_key_command(phrase) == Intent(IntentType.PRESS_KEY, key=PressableKey.ENTER)
+
+
 def test_parse_app_command_open_notes() -> None:
     intent = parse_app_command("open notes")
     assert intent == Intent(IntentType.OPEN_APP, app=LaunchableApp.NOTES)

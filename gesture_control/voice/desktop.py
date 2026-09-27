@@ -13,6 +13,11 @@ _CONTROL_PHRASES = frozenset({"cancel", "stop", "never mind"})
 _KEY_PHRASES: dict[str, PressableKey] = {
     "press enter": PressableKey.ENTER,
     "hit enter": PressableKey.ENTER,
+    "click enter": PressableKey.ENTER,
+    "tap enter": PressableKey.ENTER,
+    "hit return": PressableKey.ENTER,
+    "press return": PressableKey.ENTER,
+    "click return": PressableKey.ENTER,
     "press tab": PressableKey.TAB,
     "hit tab": PressableKey.TAB,
     "press escape": PressableKey.ESCAPE,
