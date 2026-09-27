@@ -18,6 +18,7 @@ _SITE_ALIASES: dict[str, str] = {
     "claude ai": "https://claude.ai",
     "cursor": "https://cursor.com",
     "facebook": "https://www.facebook.com",
+    "gemini": "https://gemini.google.com/app",
     "github": "https://github.com",
     "google": "https://www.google.com",
     "linkedin": "https://www.linkedin.com",

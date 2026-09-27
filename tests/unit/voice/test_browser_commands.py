@@ -6,6 +6,7 @@ until ``IntentType.OPEN_URL``, ``Intent.url``, and the browser parser exist.
 
 from __future__ import annotations
 
+import pytest
 from gesture_control.actions import Intent, IntentType
 from gesture_control.voice.browser import parse_browser_command
 
@@ -104,3 +105,25 @@ def test_terminal_whisper_punctuation_is_ignored_for_site_aliases() -> None:
 def test_https_url_with_userinfo_is_rejected() -> None:
     """HTTPS URLs that embed credentials must not become an OPEN_URL intent."""
     assert parse_browser_command("open https://user:pass@example.com") is None
+
+
+@pytest.mark.parametrize(
+    "transcript",
+    [
+        "open https://127.0.0.1/",
+        "open https://localhost/",
+        "open https://192.168.1.1/",
+        "open https://[::1]/",
+        "open https://evil.com:0/",
+        "open https://evil.com:99999/",
+        "open https://exa mple.com",
+        "open https://example.com\\@evil.com",
+        "open https://-bad.com",
+        "open https://bad-.com",
+        "open google.internal",
+        "open google.local",
+        "open 192.168.0.1",
+    ],
+)
+def test_private_hosts_and_malformed_https_literals_are_rejected(transcript: str) -> None:
+    assert parse_browser_command(transcript) is None

@@ -96,6 +96,8 @@ def test_combined_parser_accepts_navigation_commands() -> None:
         "next time.",
         "next tap.",
         "Open next time.",
+        "next step.",
+        "next up.",
     ],
 )
 def test_observed_whisper_next_tab_variants_are_narrowly_normalized(
@@ -108,3 +110,9 @@ def test_observed_whisper_next_tab_variants_are_narrowly_normalized(
 def test_observed_whisper_close_tab_variant_is_normalized() -> None:
     """The common tab-to-tap substitution should preserve close-tab intent."""
     assert parse_command("close tap.") == Intent(IntentType.CLOSE_TAB)
+
+
+@pytest.mark.parametrize("transcript", ["close step", "closed step", "close step."])
+def test_observed_moonshine_close_step_variant_is_normalized(transcript: str) -> None:
+    """The tab-to-step mishear (Moonshine small_streaming) should still close the tab."""
+    assert parse_command(transcript) == Intent(IntentType.CLOSE_TAB)
