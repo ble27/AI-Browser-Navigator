@@ -42,6 +42,7 @@ voice = [
     "piper-tts>=1.2,<2",
     "sounddevice>=0.5,<1",
     "moonshine-voice==0.1.5",
+    "mlx-whisper>=0.4,<1",
 ]
 # Development / quality tooling.
 dev = [
