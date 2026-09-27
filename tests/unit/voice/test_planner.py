@@ -32,11 +32,40 @@ def test_open_url_sets_browser_surface() -> None:
     assert steps[0].intent.kind is IntentType.OPEN_URL
 
 
+def test_repeated_partial_open_never_waits_on_its_own_destination() -> None:
+    planner = DeterministicClausePlanner()
+    clause = _clause("open amazon")
+    first = planner.plan(clause)
+    repeated = planner.plan(clause)
+    assert isinstance(first[0], ResolvedStep)
+    assert isinstance(repeated[0], ResolvedStep)
+    assert first[0].ready is None
+    assert repeated[0].ready is None
+
+
 def test_open_notes_sets_app_surface() -> None:
     planner = DeterministicClausePlanner()
     steps = planner.plan(_clause("open notes"))
     assert planner.surface is Surface.APP
     assert steps[0].intent.app is LaunchableApp.NOTES
+
+
+def test_session_host_persists_across_lines_for_click() -> None:
+    planner = DeterministicClausePlanner()
+    planner.plan(_clause("open amazon", line_id=0))
+    steps = planner.plan(_clause("click orders", line_id=1))
+    assert isinstance(steps[0], PageStep)
+    assert steps[0].ready is not None
+    assert steps[0].ready.host == "amazon.com"
+
+
+def test_browser_control_does_not_inherit_session_host_readiness() -> None:
+    planner = DeterministicClausePlanner()
+    planner.plan(_clause("open amazon", line_id=0))
+    steps = planner.plan(_clause("next tab", line_id=1))
+    assert isinstance(steps[0], ResolvedStep)
+    assert steps[0].intent.kind is IntentType.NEXT_TAB
+    assert steps[0].ready is None
 
 
 def test_ask_macro_emits_three_steps() -> None:
