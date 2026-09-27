@@ -782,6 +782,14 @@ def main(argv: list[str] | None = None) -> int:
         help="Also record and score 5 live microphone phrases.",
     )
     parser.add_argument(
+        "--corpus",
+        action="store_true",
+        help=(
+            "Record the expanded real-voice corpus (~25 prompts), score with "
+            "repair, and write tests/manual/_cache/moonshine_spike/corpus/manifest.json."
+        ),
+    )
+    parser.add_argument(
         "--write-md",
         type=Path,
         default=None,
@@ -819,21 +827,42 @@ def main(argv: list[str] | None = None) -> int:
         return 1
 
     phrases: list[tuple[str, str | None, Path]] = []
-    if not args.skip_synth:
-        print("Generating synth WAVs with `say` ...")
-        for phrase, brand in _SYNTH_PHRASES:
-            wav = _generate_synth_wav(phrase)
-            phrases.append((phrase, brand, wav))
-
     live_ran = False
-    if args.live:
-        print("Recording live mic phrases ...")
+    corpus_dir = _CACHE_DIR / "corpus"
+
+    if args.corpus:
+        from gesture_control.voice.asr_repair import repair_command_text
+        from gesture_control.voice.voice_corpus import (
+            CORPUS_PROMPTS,
+            CorpusEntry,
+            brand_hit,
+            write_corpus_manifest,
+        )
+
+        args.skip_synth = True
+        args.repair = True
+        print(f"Recording real-voice corpus ({len(CORPUS_PROMPTS)} prompts) ...")
         live_ran = True
-        for index, (phrase, brand) in enumerate(_LIVE_PROMPTS, start=1):
-            print(f"Live {index}/{len(_LIVE_PROMPTS)}: please say {phrase!r}")
-            path = _LIVE_DIR / f"live_{index:02d}_{_slug(phrase)}.wav"
+        corpus_dir.mkdir(parents=True, exist_ok=True)
+        for index, (phrase, brand) in enumerate(CORPUS_PROMPTS, start=1):
+            print(f"Corpus {index}/{len(CORPUS_PROMPTS)}: please say {phrase!r}")
+            path = corpus_dir / f"corpus_{index:02d}_{_slug(phrase)}.wav"
             _record_live_wav(path)
             phrases.append((phrase, brand, path))
+    else:
+        if not args.skip_synth:
+            print("Generating synth WAVs with `say` ...")
+            for phrase, brand in _SYNTH_PHRASES:
+                wav = _generate_synth_wav(phrase)
+                phrases.append((phrase, brand, wav))
+        if args.live:
+            print("Recording live mic phrases ...")
+            live_ran = True
+            for index, (phrase, brand) in enumerate(_LIVE_PROMPTS, start=1):
+                print(f"Live {index}/{len(_LIVE_PROMPTS)}: please say {phrase!r}")
+                path = _LIVE_DIR / f"live_{index:02d}_{_slug(phrase)}.wav"
+                _record_live_wav(path)
+                phrases.append((phrase, brand, path))
 
     if not phrases:
         print("error: no phrases to evaluate", file=sys.stderr)
@@ -858,6 +887,47 @@ def main(argv: list[str] | None = None) -> int:
                 reasons.append(f"  - {item}")
         else:
             reasons.append("non-brand parse regressions: 0")
+
+    if args.corpus:
+        from gesture_control.voice.asr_repair import repair_command_text
+        from gesture_control.voice.voice_corpus import (
+            CorpusEntry,
+            brand_hit,
+            write_corpus_manifest,
+        )
+
+        entries: list[CorpusEntry] = []
+        for index, ((phrase, brand, wav_path), result, raw) in enumerate(
+            zip(phrases, moon.results, raw_moon, strict=True),
+            start=1,
+        ):
+            raw_text = raw or ""
+            repaired = repair_command_text(raw_text) if raw_text else ""
+            entries.append(
+                CorpusEntry(
+                    index=index,
+                    expected=phrase,
+                    brand=brand,
+                    wav_path=str(wav_path),
+                    raw_transcript=raw_text,
+                    repaired_transcript=repaired,
+                    brand_hit=brand_hit(repaired, brand),
+                    had_partial=bool(result.had_partial_during_speech),
+                    final_latency_ms=result.final_latency_ms,
+                )
+            )
+        report = write_corpus_manifest(corpus_dir / "manifest.json", entries)
+        print(
+            f"Corpus brand accuracy: {report.brand_hits}/{report.brand_total} "
+            f"= {report.brand_accuracy:.0%} "
+            f"({'PASS' if report.passes_gate else 'FAIL'} gate ≥90%)"
+        )
+        print(f"Wrote {corpus_dir / 'manifest.json'}")
+        if not report.passes_gate:
+            is_go = False
+            reasons.append(
+                f"corpus brand accuracy {report.brand_accuracy:.0%} < 90%",
+            )
 
     _print_summary(tiny, moon, is_go, reasons)
 
