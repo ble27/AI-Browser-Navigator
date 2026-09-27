@@ -3,8 +3,7 @@
 from __future__ import annotations
 
 from gesture_control.actions import Intent, IntentType
-
-_SEARCH_PREFIXES = ("search for ", "look up ", "lookup ", "google ")
+from gesture_control.voice.spans import extract_search_span
 
 
 def parse_search_command(transcript: str) -> Intent | None:
@@ -17,17 +16,7 @@ def parse_search_command(transcript: str) -> Intent | None:
         A ``SEARCH_WEB`` intent carrying literal query text, or ``None`` when
         the complete phrase does not match the deterministic grammar.
     """
-    collapsed = " ".join(transcript.split())
-    if not collapsed:
+    span = extract_search_span(transcript)
+    if span is None:
         return None
-
-    folded = collapsed.casefold()
-    for prefix in _SEARCH_PREFIXES:
-        if folded.startswith(prefix):
-            query = collapsed[len(prefix) :].strip()
-            return Intent(IntentType.SEARCH_WEB, text=query) if query else None
-
-    if folded.startswith("find ") and folded.endswith(" online"):
-        query = collapsed[5:-7].strip()
-        return Intent(IntentType.SEARCH_WEB, text=query) if query else None
-    return None
+    return Intent(IntentType.SEARCH_WEB, text=span.query)

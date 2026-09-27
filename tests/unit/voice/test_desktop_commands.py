@@ -42,6 +42,8 @@ def test_parse_type_command_literal_and_target() -> None:
     assert parse_type_command("type hello").text == "hello"
     assert parse_type_command("type hello").has_target is False
     assert parse_type_command("type hello into email").has_target is True
+    assert parse_type_command("Type, I love you").text == "I love you"
+    assert parse_type_command("type I love you in notes").text == "I love you"
 
 
 def test_parse_ask_command_claude() -> None:
@@ -50,3 +52,10 @@ def test_parse_ask_command_claude() -> None:
     assert ask.url == "https://claude.ai/new"
     assert ask.host == "claude.ai"
     assert "two plus two" in ask.query
+
+
+def test_parse_ask_bare_opens_assistant() -> None:
+    ask = parse_ask_command("ask chatgpt")
+    assert ask is not None
+    assert ask.url == "https://chatgpt.com"
+    assert ask.query == ""

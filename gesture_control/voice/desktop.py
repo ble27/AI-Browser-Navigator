@@ -2,11 +2,10 @@
 
 from __future__ import annotations
 
-import re
-
 from gesture_control.actions import Intent, IntentType
 from gesture_control.backends.base import LaunchableApp, PressableKey
 from gesture_control.voice.browser import parse_browser_command
+from gesture_control.voice.spans import extract_ask_span, extract_type_span
 from gesture_control.voice.stream_contracts import AskRequest, TypeRequest
 
 _CONTROL_PHRASES = frozenset({"cancel", "stop", "never mind"})
@@ -58,14 +57,7 @@ _ASSISTANTS: dict[str, tuple[str, str]] = {
     "gemini": ("https://gemini.google.com/app", "gemini.google.com"),
 }
 
-_APP_PREFIXES = ("open ", "launch ")
-_TYPE_INTO = re.compile(
-    r"^(?:type|write)\s+(.+?)\s+into\s+(.+)$",
-    re.IGNORECASE,
-)
-_FILL_WITH = re.compile(r"^fill\s+(.+?)\s+with\s+(.+)$", re.IGNORECASE)
-_TYPE_WRITE = re.compile(r"^(?:type|write)\s+(.+)$", re.IGNORECASE)
-_ASK_QUERY = re.compile(r"^(?:ask|query)\s+(\w+)\s+(.+)$", re.IGNORECASE)
+_APP_PREFIXES = ("open ", "opened ", "launch ")
 
 
 def parse_control_command(text: str) -> bool:
@@ -104,7 +96,9 @@ def parse_app_command(text: str) -> Intent | None:
         app = _APP_ALIASES.get(alias)
         if app is None:
             return None
-        if " app" not in folded and parse_browser_command(collapsed) is not None:
+        # Prefer the present-tense form so browser-site checks stay consistent.
+        present = "open " + " ".join(tokens)
+        if " app" not in folded and parse_browser_command(present) is not None:
             return None
         return Intent(IntentType.OPEN_APP, app=app)
     return None
@@ -112,32 +106,23 @@ def parse_app_command(text: str) -> Intent | None:
 
 def parse_type_command(text: str) -> TypeRequest | None:
     """Parse type/write phrases into literal typing requests."""
-    collapsed = " ".join(text.split())
-    match = _TYPE_INTO.match(collapsed)
-    if match is not None:
-        return TypeRequest(text=match.group(1), has_target=True)
-    match = _FILL_WITH.match(collapsed)
-    if match is not None:
-        return TypeRequest(text=match.group(2), has_target=True)
-    match = _TYPE_WRITE.match(collapsed)
-    if match is not None:
-        payload = match.group(1).strip()
-        return TypeRequest(text=payload, has_target=False) if payload else None
-    return None
+    span = extract_type_span(text)
+    if span is None:
+        return None
+    return TypeRequest(text=span.text, has_target=span.has_target)
 
 
 def parse_ask_command(text: str) -> AskRequest | None:
-    """Parse assistant ask/query macros."""
-    collapsed = " ".join(text.split())
-    match = _ASK_QUERY.match(collapsed)
-    if match is None:
+    """Parse assistant ask/query macros.
+
+    Bare ``ask claude`` (no query) still opens the assistant; the planner skips
+    type/enter when ``query`` is empty.
+    """
+    span = extract_ask_span(text)
+    if span is None:
         return None
-    assistant = match.group(1).casefold()
-    query = match.group(2).strip()
-    if not query:
-        return None
-    target = _ASSISTANTS.get(assistant)
+    target = _ASSISTANTS.get(span.assistant)
     if target is None:
         return None
     url, host = target
-    return AskRequest(url=url, host=host, query=query)
+    return AskRequest(url=url, host=host, query=span.query)
