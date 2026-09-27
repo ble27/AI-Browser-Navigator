@@ -12,6 +12,11 @@ from gesture_control.voice.commands import parse_command
     [
         ("Open Cloud.", "Open claude"),
         ("open cloud", "open claude"),
+        ("Open-cloud", "Open claude"),
+        ("Opened Claude", "open Claude"),
+        ("Open-clawed", "Open claude"),
+        ("Opened color", "open claude"),
+        ("Asked Chatibiti", "ask chatgpt"),
         ("Open up an A.", "Open openai"),
         ("open up an a", "open openai"),
         ("OpenOpene.", "open openai"),
@@ -24,6 +29,9 @@ from gesture_control.voice.commands import parse_command
         ("open ai", "open openai"),
         ("open a i", "open openai"),
         ("  Open   Cloud  ", "Open claude"),
+        # Fuzzy closed-vocab (no exact-table entry required).
+        ("open gemeni", "open gemini"),
+        ("open amazin", "open amazon"),
     ],
 )
 def test_observed_misses_repair_to_brands(raw: str, expected: str) -> None:
@@ -81,6 +89,12 @@ def test_trailing_punctuation_stripped_without_repair() -> None:
 def test_non_brand_parse_command_unchanged_by_repair(phrase: str) -> None:
     """S0b regression: repair must not change non-brand grammar outcomes."""
     assert parse_command(repair_command_text(phrase)) == parse_command(phrase)
+
+
+def test_compound_and_delimiter_preserved() -> None:
+    """Fuzzy repair must not eat clause delimiters in compound commands."""
+    assert repair_command_text("open amazon and click orders") == "open amazon and click orders"
+    assert repair_command_text("open amazin and scroll down") == "open amazon and scroll down"
 
 
 def test_already_correct_brand_stays_parseable() -> None:
