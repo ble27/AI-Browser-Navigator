@@ -127,6 +127,21 @@ def build_arg_parser() -> argparse.ArgumentParser:
         help=("faster-whisper model id or local directory used by --voice " "(default: tiny.en)."),
     )
     parser.add_argument(
+        "--voice-mode",
+        choices=("utterance", "streaming"),
+        default="utterance",
+        help=(
+            "Continuous microphone pipeline: batch utterance (default) or "
+            "offline streaming Moonshine agent."
+        ),
+    )
+    parser.add_argument(
+        "--voice-stt",
+        choices=("small_streaming", "medium_streaming"),
+        default="small_streaming",
+        help="Moonshine streaming architecture when --voice-mode=streaming.",
+    )
+    parser.add_argument(
         "--version",
         action="version",
         version=f"%(prog)s {__version__}",
@@ -315,6 +330,75 @@ def run_voice_session(model_name: str = "tiny.en") -> int:
     return 0
 
 
+def run_streaming_voice_session(model_arch: str = "small_streaming") -> int:
+    """Run the offline streaming voice agent on the default microphone.
+
+    Args:
+        model_arch: Moonshine streaming model name.
+
+    Returns:
+        ``0`` after a clean Ctrl+C shutdown, or ``1`` when setup/runtime fails.
+    """
+    print("Streaming voice mode uses the default microphone and never uploads audio.")
+    try:
+        from gesture_control.backends.macos import frontmost_app_name
+        from gesture_control.browser.bridge import ChromePageBridge
+        from gesture_control.voice.executor import QueuedStepExecutor
+        from gesture_control.voice.live_page import LivePageCommandResolver
+        from gesture_control.voice.moonshine_stt import MoonshineStreamingTranscriber
+        from gesture_control.voice.planner import DeterministicClausePlanner
+        from gesture_control.voice.segmenter import DeterministicClauseSegmenter
+        from gesture_control.voice.stream_contracts import StepReport
+        from gesture_control.voice.streaming_agent import StreamingVoiceAgent
+
+        with ChromePageBridge() as page_bridge:
+            backend = MacOSInputBackend(page_bridge=page_bridge)
+            page_resolver = LivePageCommandResolver(page_bridge)
+            mapper = ActionMapper(backend)
+
+            def report(step_report: StepReport) -> None:
+                print(f"[{step_report.outcome.value}] {step_report.detail}")
+
+            class _FocusPort:
+                def frontmost_app(self) -> str | None:
+                    return frontmost_app_name()
+
+            executor = QueuedStepExecutor(
+                mapper=mapper,
+                page=page_resolver,
+                focus=_FocusPort(),
+                safe_pause=backend.safe_pause,
+                report=report,
+            )
+            agent = StreamingVoiceAgent(
+                MoonshineStreamingTranscriber(model_arch=model_arch),
+                DeterministicClauseSegmenter(),
+                DeterministicClausePlanner(),
+                executor,
+            )
+            with SafePauseHotkey(
+                backend.safe_pause,
+                on_toggle=lambda paused: print(
+                    f"Input {'paused' if paused else 'resumed'} " "(Ctrl+Option+Command+P)."
+                ),
+            ):
+                print("Streaming voice listening. Speak continuously; " "press Ctrl+C to stop.")
+                agent.start()
+                try:
+                    while True:
+                        time.sleep(0.25)
+                except KeyboardInterrupt:
+                    agent.stop()
+                    executor.close()
+    except KeyboardInterrupt:
+        print("\nStreaming voice mode stopped.")
+        return 0
+    except RuntimeError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 1
+    return 0
+
+
 def run_dump_page() -> int:
     """Print the active Chrome tab's indexed controls for phrase discovery.
 
@@ -389,7 +473,9 @@ def main(argv: list[str] | None = None) -> int:
     if args.dump_page:
         return run_dump_page()
     if args.voice:
-        return run_voice_session(args.voice_model)
+        if args.voice_mode == "streaming":
+            return run_streaming_voice_session(model_arch=args.voice_stt)
+        return run_voice_session(model_name=args.voice_model)
     if args.debug:
         return run_debug_overlay(
             camera_index=args.camera_index,

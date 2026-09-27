@@ -119,7 +119,6 @@ def test_input_backend_desktop_method_signatures() -> None:
     assert list(key_sig.parameters) == ["self", "key"]
 
 
-@pytest.mark.xfail(strict=True, reason="desktop track")
 def test_desktop_parser_signatures() -> None:
     desktop = importlib.import_module("gesture_control.voice.desktop")
     for name in (
@@ -133,7 +132,6 @@ def test_desktop_parser_signatures() -> None:
         assert callable(func)
 
 
-@pytest.mark.xfail(strict=True, reason="STT track")
 def test_moonshine_transcriber_constructor() -> None:
     module = importlib.import_module("gesture_control.voice.moonshine_stt")
     cls = module.MoonshineStreamingTranscriber
@@ -144,14 +142,12 @@ def test_moonshine_transcriber_constructor() -> None:
     assert sig.parameters["update_interval_s"].default == 0.3
 
 
-@pytest.mark.xfail(strict=True, reason="SEG track")
 def test_clause_segmenter_constructor() -> None:
     module = importlib.import_module("gesture_control.voice.segmenter")
     sig = inspect.signature(module.DeterministicClauseSegmenter)
     assert list(sig.parameters) == ["self"]
 
 
-@pytest.mark.xfail(strict=True, reason="planner track")
 def test_clause_planner_constructor() -> None:
     module = importlib.import_module("gesture_control.voice.planner")
     sig = inspect.signature(module.DeterministicClausePlanner)
@@ -160,7 +156,6 @@ def test_clause_planner_constructor() -> None:
     assert sig.parameters["initial_surface"].default is Surface.BROWSER
 
 
-@pytest.mark.xfail(strict=True, reason="EXEC track")
 def test_queued_step_executor_constructor() -> None:
     module = importlib.import_module("gesture_control.voice.executor")
     cls = module.QueuedStepExecutor
@@ -178,7 +173,6 @@ def test_queued_step_executor_constructor() -> None:
     ]
 
 
-@pytest.mark.xfail(strict=True, reason="integration track")
 def test_streaming_voice_agent_constructor() -> None:
     module = importlib.import_module("gesture_control.voice.streaming_agent")
     sig = inspect.signature(module.StreamingVoiceAgent)

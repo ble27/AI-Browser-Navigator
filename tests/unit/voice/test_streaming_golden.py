@@ -170,20 +170,17 @@ def _run_golden(
     return backend, reports
 
 
-@pytest.mark.xfail(strict=True, reason="S2")
 def test_g1_final_open_reddit() -> None:
     backend, reports = _run_golden([_final(0, "open reddit")])
     assert backend.calls == [_BackendCall("open_url", ("https://www.reddit.com",))]
     assert reports and reports[0].outcome is StepOutcome.DONE
 
 
-@pytest.mark.xfail(strict=True, reason="S2")
 def test_g2_final_next_tab() -> None:
     backend, _reports = _run_golden([_final(0, "next tab")])
     assert backend.calls == [_BackendCall("navigate_browser", (BrowserAction.NEXT_TAB,))]
 
 
-@pytest.mark.xfail(strict=True, reason="S2")
 def test_g16_paused_at_dequeue() -> None:
     _backend, reports = _run_golden(
         [_final(0, "open reddit"), _final(1, "next tab")],
@@ -194,7 +191,6 @@ def test_g16_paused_at_dequeue() -> None:
     assert StepOutcome.CANCELLED in outcomes
 
 
-@pytest.mark.xfail(strict=True, reason="S3")
 def test_g3_partial_amazon_before_final() -> None:
     events = [
         _partial(0, "open amazon and", 0.1),
@@ -208,7 +204,6 @@ def test_g3_partial_amazon_before_final() -> None:
     assert "amazon" in first.args[0]
 
 
-@pytest.mark.xfail(strict=True, reason="S3")
 def test_g4_revision_does_not_open_amazing() -> None:
     events = [
         _partial(0, "open amazing and", 0.1),
@@ -221,7 +216,6 @@ def test_g4_revision_does_not_open_amazing() -> None:
     assert open_urls.count("https://www.amazon.com") == 1
 
 
-@pytest.mark.xfail(strict=True, reason="S4")
 def test_g5_click_orders_after_host_ready() -> None:
     page = FakePagePort(url="https://example.com/")
     page.elements["click orders"] = Intent(IntentType.CLICK_ELEMENT, target_id="e_orders")
@@ -235,7 +229,6 @@ def test_g5_click_orders_after_host_ready() -> None:
     assert names.index("open_url") < names.index("click_element")
 
 
-@pytest.mark.xfail(strict=True, reason="S4")
 def test_g6_search_after_amazon_ready() -> None:
     page = FakePagePort(url="https://example.com/")
 
@@ -250,7 +243,6 @@ def test_g6_search_after_amazon_ready() -> None:
     assert any(call.name == "search_web" and call.args[0] == "headphones" for call in backend.calls)
 
 
-@pytest.mark.xfail(strict=True, reason="S4")
 def test_g7_host_never_ready_cancels_line() -> None:
     page = FakePagePort(url="https://example.com/")
     reports: list[StepReport] = []
@@ -267,7 +259,6 @@ def test_g7_host_never_ready_cancels_line() -> None:
     assert any(call.name == "open_url" and "reddit" in call.args[0] for call in backend.calls)
 
 
-@pytest.mark.xfail(strict=True, reason="S5")
 def test_g8_notes_macro() -> None:
     focus = FakeFocus(app=None)
 
@@ -297,7 +288,6 @@ def test_g8_notes_macro() -> None:
     )
 
 
-@pytest.mark.xfail(strict=True, reason="S5")
 def test_g9_type_into_email_via_page() -> None:
     page = FakePagePort()
     page.elements["type hello into email"] = Intent(
@@ -307,21 +297,18 @@ def test_g9_type_into_email_via_page() -> None:
     assert backend.calls == [_BackendCall("type_text", ("e_email", "hello"))]
 
 
-@pytest.mark.xfail(strict=True, reason="S5")
 def test_g10_type_hello_fallback_when_bridge_down() -> None:
     page = FakePagePort(unavailable=True)
     backend, _reports = _run_golden([_final(0, "type hello")], page=page)
     assert backend.calls == [_BackendCall("type_focused", ("hello",))]
 
 
-@pytest.mark.xfail(strict=True, reason="S5")
 def test_g11_press_enter_is_key_not_page() -> None:
     backend, _reports = _run_golden([_final(0, "press enter")])
     assert backend.calls == [_BackendCall("press_key", (PressableKey.ENTER,))]
     assert not any(call.name == "click_element" for call in backend.calls)
 
 
-@pytest.mark.xfail(strict=True, reason="S6")
 def test_g12_brand_opens_correct_urls() -> None:
     for phrase, url in (
         ("open claude", "https://claude.ai"),
@@ -334,7 +321,6 @@ def test_g12_brand_opens_correct_urls() -> None:
         assert backend.calls == [_BackendCall("open_url", (url,))]
 
 
-@pytest.mark.xfail(strict=True, reason="S6")
 def test_g13_ask_claude_macro() -> None:
     page = FakePagePort(url="https://example.com/")
 
@@ -351,14 +337,12 @@ def test_g13_ask_claude_macro() -> None:
     assert backend.calls[-1] == _BackendCall("press_key", (PressableKey.ENTER,))
 
 
-@pytest.mark.xfail(strict=True, reason="S6")
 def test_g14_browse_prefixes_open_url() -> None:
     for phrase in ("browse to github.com", "take me to youtube"):
         backend, _reports = _run_golden([_final(0, phrase)])
         assert backend.calls and backend.calls[0].name == "open_url"
 
 
-@pytest.mark.xfail(strict=True, reason="S7")
 def test_g15_cancel_while_waiting() -> None:
     page = FakePagePort(url="https://example.com/")
     page.elements["click orders"] = Intent(IntentType.CLICK_ELEMENT, target_id="e_orders")
@@ -371,7 +355,6 @@ def test_g15_cancel_while_waiting() -> None:
     assert any(report.outcome is StepOutcome.CANCELLED for report in reports)
 
 
-@pytest.mark.xfail(strict=True, reason="S6")
 def test_g17_spike_repair_outputs() -> None:
     for raw, url in (
         ("Open Cloud.", "https://claude.ai"),

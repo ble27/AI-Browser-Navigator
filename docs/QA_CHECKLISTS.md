@@ -179,6 +179,27 @@ ordinary HTTPS page, and start `--voice`.
 - [ ] TTS confirmation is audible and matches the executed action.
 - [ ] Disabling the mic via tray icon stops wake-word listening.
 
+### M5 streaming voice (manual; blocks default flip)
+
+Run from the repo venv on macOS with the Chrome page bridge connected.
+
+- [ ] Held-out accuracy: `python tests/manual/verify_moonshine_streaming.py --live --repair`
+      scores at least 90% brand keywords.
+- [ ] `gesture-control --voice --voice-mode streaming`: say **open reddit**; Chrome
+      opens Reddit.
+- [ ] Same session: **open amazon and scroll down** — Amazon opens before you
+      finish the sentence.
+- [ ] **open amazon and click orders** after Amazon is ready (Account & Lists →
+      Orders or equivalent).
+- [ ] Notes macro: **open notes then new note then type buy milk and eggs then
+      press enter**.
+- [ ] **ask claude …** and **ask chatgpt …** while logged in; drop assistants
+      whose composer does not autofocus (record in `docs/BACKLOG.md`).
+- [ ] Press SafePause mid-queue; queued steps must not dispatch after resume.
+- [ ] Say **cancel** while a step waits on readiness; pending work is cancelled.
+- [ ] Regression: `gesture-control --voice --voice-mode utterance` still behaves
+      as before.
+
 ## M6 — Accessibility layer
 
 - [ ] First-run calibration wizard produces a usable gesture range for a new

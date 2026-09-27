@@ -54,7 +54,8 @@ python -m gesture_control.app --command "open cursor webpage"  # open that site 
 python -m gesture_control.app --command "next tab"        # send a fixed Chrome shortcut
 python -m gesture_control.app --command "search for hand tracking"
 python -m gesture_control.app --command "scroll down 3 pages"
-python -m gesture_control.app --voice                     # continuously listen locally (macOS)
+python -m gesture_control.app --voice                     # utterance mode (default; macOS)
+python -m gesture_control.app --voice --voice-mode streaming  # Moonshine streaming agent
 python -m gesture_control.app --version
 ```
 
@@ -99,7 +100,9 @@ focus Google Chrome, then explicitly start continuous listening:
 
 ```bash
 python -m gesture_control.app --voice
-# Or select another faster-whisper model/local directory:
+# Streaming agent (Moonshine; acts while you talk):
+python -m gesture_control.app --voice --voice-mode streaming
+# Or select another faster-whisper model for utterance mode:
 python -m gesture_control.app --voice --voice-model base.en
 ```
 
