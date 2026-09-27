@@ -12,12 +12,18 @@ _SITE_ALIASES: dict[str, str] = {
     "amazon": "https://www.amazon.com",
     "apple": "https://www.apple.com",
     "bing": "https://www.bing.com",
+    "chat gpt": "https://chatgpt.com",
+    "chatgpt": "https://chatgpt.com",
+    "claude": "https://claude.ai",
+    "claude ai": "https://claude.ai",
     "cursor": "https://cursor.com",
     "facebook": "https://www.facebook.com",
     "github": "https://github.com",
     "google": "https://www.google.com",
     "linkedin": "https://www.linkedin.com",
     "netflix": "https://www.netflix.com",
+    "openai": "https://openai.com",
+    "perplexity": "https://www.perplexity.ai",
     "reddit": "https://www.reddit.com",
     "twitter": "https://x.com",
     "wikipedia": "https://www.wikipedia.org",
@@ -26,7 +32,14 @@ _SITE_ALIASES: dict[str, str] = {
 }
 
 _TRAILING_SITE_WORDS = frozenset({"webpage", "website", "site"})
-_COMMAND_PREFIXES = ("go to ", "open ", "visit ")
+_COMMAND_PREFIXES = (
+    "browse to ",
+    "go to ",
+    "open ",
+    "pull up ",
+    "take me to ",
+    "visit ",
+)
 _HOST_LABEL = re.compile(r"^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$", re.IGNORECASE)
 _LOCAL_SUFFIXES = (".internal", ".local", ".localhost")
 
@@ -74,17 +87,32 @@ def parse_browser_command(transcript: str) -> Intent | None:
     site_tokens = candidate.rstrip(".,!?").split()
     if site_tokens and site_tokens[-1].casefold() in _TRAILING_SITE_WORDS:
         site_tokens = site_tokens[:-1]
-    if len(site_tokens) != 1:
+    if not site_tokens:
+        return None
+    if site_tokens[-1].casefold() == "app":
         return None
 
-    url = _SITE_ALIASES.get(site_tokens[0].casefold())
-    if url is not None:
-        return Intent(IntentType.OPEN_URL, url=url)
+    alias_url = _match_site_alias(site_tokens)
+    if alias_url is not None:
+        return Intent(IntentType.OPEN_URL, url=alias_url)
+
+    if len(site_tokens) != 1:
+        return None
 
     bare_domain = candidate.rstrip(".,!?")
     if any(character.isspace() for character in bare_domain):
         return None
     return _intent_for_https_url(f"https://{bare_domain}")
+
+
+def _match_site_alias(tokens: list[str]) -> str | None:
+    """Return the longest allowlisted alias URL for ``tokens``."""
+    for length in range(len(tokens), 0, -1):
+        key = " ".join(tokens[:length]).casefold()
+        url = _SITE_ALIASES.get(key)
+        if url is not None:
+            return url
+    return None
 
 
 def _intent_for_https_url(url: str) -> Intent | None:

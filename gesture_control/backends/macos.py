@@ -9,7 +9,14 @@ from collections.abc import Callable
 from typing import TYPE_CHECKING, Protocol
 from urllib.parse import urlparse
 
-from gesture_control.backends.base import BrowserAction, InputBackend, SafePause
+from gesture_control.backends.base import (
+    BrowserAction,
+    InputBackend,
+    LaunchableApp,
+    PressableKey,
+    SafePause,
+)
+from gesture_control.voice.stream_contracts import MAX_TYPED_CHARS
 
 if TYPE_CHECKING:
     from gesture_control.browser.bridge import PageSnapshot
@@ -373,6 +380,57 @@ class MacOSInputBackend(InputBackend):
         if self.safe_pause.is_paused:
             return
         self._page_bridge.type_and_submit(target_id, text)
+
+    def open_app(self, app: LaunchableApp) -> None:
+        """Open or focus a native macOS application when the gate is open."""
+        if self.safe_pause.is_paused:
+            return
+        subprocess.run(["open", "-a", app.value], check=False)
+
+    def type_focused(self, text: str) -> None:
+        """Type literal text into the focused control when the gate is open."""
+        if self.safe_pause.is_paused:
+            return
+        if not text or len(text) > MAX_TYPED_CHARS:
+            return
+        if any(ord(character) < 32 or ord(character) == 127 for character in text):
+            return
+        from pynput import keyboard
+
+        keyboard.Controller().type(text)
+
+    def press_key(self, key: PressableKey) -> None:
+        """Press a named key chord when the gate is open."""
+        if self.safe_pause.is_paused:
+            return
+        chords: dict[PressableKey, tuple[str, ...]] = {
+            PressableKey.ENTER: ("enter",),
+            PressableKey.TAB: ("tab",),
+            PressableKey.ESCAPE: ("escape",),
+            PressableKey.BACKSPACE: ("backspace",),
+            PressableKey.NEW_ITEM: ("cmd", "n"),
+            PressableKey.SELECT_ALL: ("cmd", "a"),
+        }
+        self._shortcut_sender(chords[key])
+
+
+def frontmost_app_name() -> str | None:
+    """Return the frontmost application name via AppleScript."""
+    result = subprocess.run(
+        [
+            "osascript",
+            "-e",
+            (
+                'tell application "System Events" to get name of first '
+                "application process whose frontmost is true"
+            ),
+        ],
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    name = result.stdout.strip()
+    return name or None
 
 
 class SafePauseHotkey:

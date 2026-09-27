@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import Any
 
 import pytest
-from gesture_control.backends.base import BrowserAction, InputBackend
+from gesture_control.backends.base import BrowserAction, InputBackend, LaunchableApp, PressableKey
 from gesture_control.backends.macos import MacOSInputBackend, _open_url_in_google_chrome
 
 
@@ -268,3 +268,47 @@ def test_paused_backend_does_not_call_the_page_bridge() -> None:
     assert bridge.typed == []
     assert bridge.focused == []
     assert bridge.submitted == []
+
+
+def test_open_app_launches_named_application(monkeypatch: pytest.MonkeyPatch) -> None:
+    backend, _mouse = _backend_with_fake_mouse()
+    launched: list[list[str]] = []
+
+    def fake_run(command: list[str], **kwargs: object) -> None:
+        launched.append(command)
+
+    monkeypatch.setattr("gesture_control.backends.macos.subprocess.run", fake_run)
+    backend.open_app(LaunchableApp.TEXTEDIT)
+    assert launched == [["open", "-a", "TextEdit"]]
+
+
+def test_paused_backend_does_not_open_app(monkeypatch: pytest.MonkeyPatch) -> None:
+    backend, _mouse = _backend_with_fake_mouse()
+    launched: list[list[str]] = []
+
+    def fake_run(command: list[str], **kwargs: object) -> None:
+        launched.append(command)
+
+    monkeypatch.setattr("gesture_control.backends.macos.subprocess.run", fake_run)
+    backend.safe_pause.toggle()
+    backend.open_app(LaunchableApp.NOTES)
+    assert launched == []
+
+
+def test_type_focused_rejects_control_characters(monkeypatch: pytest.MonkeyPatch) -> None:
+    backend, _mouse = _backend_with_fake_mouse()
+    typed: list[str] = []
+
+    class _Controller:
+        def type(self, text: str) -> None:
+            typed.append(text)
+
+    monkeypatch.setattr("pynput.keyboard.Controller", lambda: _Controller())
+    backend.type_focused("hello\x00")
+    assert typed == []
+
+
+def test_press_key_uses_shortcut_sender() -> None:
+    backend, shortcuts = _backend_with_shortcut_recorder()
+    backend.press_key(PressableKey.NEW_ITEM)
+    assert shortcuts == [("cmd", "n")]
