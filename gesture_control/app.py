@@ -132,14 +132,25 @@ def build_arg_parser() -> argparse.ArgumentParser:
         default="utterance",
         help=(
             "Continuous microphone pipeline: batch utterance (default) or "
-            "offline streaming Moonshine agent."
+            "streaming agent (Chrome Web Speech by default)."
         ),
     )
     parser.add_argument(
         "--voice-stt",
-        choices=("small_streaming", "medium_streaming"),
-        default="small_streaming",
-        help="Moonshine streaming architecture when --voice-mode=streaming.",
+        choices=("web_speech", "small_streaming", "medium_streaming", "mlx_turbo"),
+        default="web_speech",
+        help=(
+            "Streaming STT backend: Chrome Web Speech (default), Moonshine "
+            "small/medium, or Apple Silicon MLX Whisper large-v3-turbo."
+        ),
+    )
+    parser.add_argument(
+        "--voice-redecode",
+        action="store_true",
+        help=(
+            "On each FINAL line (Moonshine only), re-transcribe buffered audio "
+            "with MLX Whisper large-v3-turbo."
+        ),
     )
     parser.add_argument(
         "--version",
@@ -330,23 +341,41 @@ def run_voice_session(model_name: str = "tiny.en") -> int:
     return 0
 
 
-def run_streaming_voice_session(model_arch: str = "small_streaming") -> int:
-    """Run the offline streaming voice agent on the default microphone.
+def run_streaming_voice_session(
+    model_arch: str = "web_speech",
+    *,
+    redecode: bool = False,
+) -> int:
+    """Run the streaming voice agent.
 
     Args:
-        model_arch: Moonshine streaming model name.
+        model_arch: ``web_speech`` (Chrome Web Speech), ``small_streaming`` /
+            ``medium_streaming`` (Moonshine), or ``mlx_turbo`` (MLX Whisper
+            large-v3-turbo).
+        redecode: When True with Moonshine, FINAL lines are re-transcribed with
+            MLX Whisper ``large-v3-turbo``.
 
     Returns:
         ``0`` after a clean Ctrl+C shutdown, or ``1`` when setup/runtime fails.
     """
-    print("Streaming voice mode uses the default microphone and never uploads audio.")
+    if model_arch == "web_speech":
+        print(
+            "Streaming STT is Chrome Web Speech. Audio is sent to Google. "
+            "The agent stays on this machine."
+        )
+    else:
+        print("Streaming voice mode uses the default microphone and never uploads audio.")
+    if model_arch == "mlx_turbo":
+        print("STT backend: MLX Whisper large-v3-turbo (silence-endpointed).")
+    elif redecode and model_arch != "web_speech":
+        print("FINAL redecode enabled (MLX Whisper large-v3-turbo).")
     try:
         from gesture_control.backends.macos import frontmost_app_name
         from gesture_control.browser.bridge import ChromePageBridge
         from gesture_control.voice.executor import QueuedStepExecutor
         from gesture_control.voice.live_page import LivePageCommandResolver
-        from gesture_control.voice.moonshine_stt import MoonshineStreamingTranscriber
         from gesture_control.voice.planner import DeterministicClausePlanner
+        from gesture_control.voice.redecode import MlxWhisperFinalRedecoder
         from gesture_control.voice.segmenter import DeterministicClauseSegmenter
         from gesture_control.voice.stream_contracts import StepReport
         from gesture_control.voice.streaming_agent import StreamingVoiceAgent
@@ -354,6 +383,7 @@ def run_streaming_voice_session(model_arch: str = "small_streaming") -> int:
         with ChromePageBridge() as page_bridge:
             backend = MacOSInputBackend(page_bridge=page_bridge)
             page_resolver = LivePageCommandResolver(page_bridge)
+            page_resolver.warm()
             mapper = ActionMapper(backend)
 
             def report(step_report: StepReport) -> None:
@@ -370,8 +400,26 @@ def run_streaming_voice_session(model_arch: str = "small_streaming") -> int:
                 safe_pause=backend.safe_pause,
                 report=report,
             )
+            if model_arch == "web_speech":
+                from gesture_control.voice.web_speech import WebSpeechStreamingTranscriber
+
+                transcriber: object = WebSpeechStreamingTranscriber(open_browser=True)
+            elif model_arch == "mlx_turbo":
+                from gesture_control.voice.mlx_stt import MlxWhisperStreamingTranscriber
+
+                transcriber = MlxWhisperStreamingTranscriber()
+            else:
+                from gesture_control.voice.moonshine_stt import (
+                    MoonshineStreamingTranscriber,
+                )
+
+                redecoder = MlxWhisperFinalRedecoder() if redecode else None
+                transcriber = MoonshineStreamingTranscriber(
+                    model_arch=model_arch,
+                    redecoder=redecoder,
+                )
             agent = StreamingVoiceAgent(
-                MoonshineStreamingTranscriber(model_arch=model_arch),
+                transcriber,  # type: ignore[arg-type]
                 DeterministicClauseSegmenter(),
                 DeterministicClausePlanner(),
                 executor,
@@ -384,6 +432,13 @@ def run_streaming_voice_session(model_arch: str = "small_streaming") -> int:
             ):
                 print("Streaming voice listening. Speak continuously; " "press Ctrl+C to stop.")
                 agent.start()
+                control_url = getattr(transcriber, "control_url", None)
+                if isinstance(control_url, str):
+                    print(f"Voice control page: {control_url}")
+                    print(
+                        "Allow the microphone in that Chrome window, click "
+                        "Start microphone, and leave the window open."
+                    )
                 try:
                     while True:
                         time.sleep(0.25)
@@ -474,7 +529,10 @@ def main(argv: list[str] | None = None) -> int:
         return run_dump_page()
     if args.voice:
         if args.voice_mode == "streaming":
-            return run_streaming_voice_session(model_arch=args.voice_stt)
+            return run_streaming_voice_session(
+                model_arch=args.voice_stt,
+                redecode=args.voice_redecode,
+            )
         return run_voice_session(model_name=args.voice_model)
     if args.debug:
         return run_debug_overlay(
