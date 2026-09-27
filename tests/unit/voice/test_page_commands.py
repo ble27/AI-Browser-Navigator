@@ -86,6 +86,31 @@ def test_indexed_log_in_button_can_be_clicked_by_name() -> None:
     assert intent == Intent(IntentType.CLICK_ELEMENT, target_id="e1")
 
 
+def test_type_into_input_uses_the_only_textbox() -> None:
+    """``into input`` means the page's only text box, whatever its label is."""
+    elements = (
+        PageElement(element_id="e1", role="textbox", name="Message"),
+        PageElement(element_id="e2", role="button", name="Send"),
+    )
+
+    intent = resolve_page_command("type what is your name into input", elements)
+
+    assert intent == Intent(
+        IntentType.TYPE_TEXT,
+        target_id="e1",
+        text="what is your name",
+    )
+
+
+def test_type_into_input_is_ambiguous_when_several_textboxes_exist() -> None:
+    elements = (
+        PageElement(element_id="e1", role="textbox", name="Email"),
+        PageElement(element_id="e2", role="textbox", name="Password"),
+    )
+
+    assert resolve_page_command("type hello into input box", elements) is None
+
+
 def test_type_hello_into_email_targets_the_textbox() -> None:
     """``type hello into email`` should target the Email textbox."""
     elements = (

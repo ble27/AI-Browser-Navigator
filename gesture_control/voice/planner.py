@@ -15,6 +15,7 @@ from gesture_control.voice.desktop import (
     parse_key_command,
     parse_type_command,
 )
+from gesture_control.voice.spans import extract_type_span, is_generic_input_target
 from gesture_control.voice.stream_contracts import (
     CancelStep,
     Clause,
@@ -139,7 +140,15 @@ class DeterministicClausePlanner:
 
         type_request = parse_type_command(clause.text)
         if type_request is not None:
-            if type_request.has_target:
+            focused = Intent(IntentType.TYPE_FOCUSED, text=type_request.text)
+            span = extract_type_span(clause.text)
+            generic_input = (
+                type_request.has_target
+                and span is not None
+                and span.target is not None
+                and is_generic_input_target(span.target)
+            )
+            if type_request.has_target and not generic_input:
                 return [
                     PageStep(
                         source=clause,
@@ -147,18 +156,18 @@ class DeterministicClausePlanner:
                         ready=self._readiness(),
                     ),
                 ]
-            if self._surface is Surface.APP:
-                intent = Intent(IntentType.TYPE_FOCUSED, text=type_request.text)
+            if self._surface is Surface.APP and not generic_input:
                 return [
-                    ResolvedStep(source=clause, intent=intent, ready=self._readiness()),
+                    ResolvedStep(source=clause, intent=focused, ready=self._readiness()),
                 ]
-            fallback = Intent(IntentType.TYPE_FOCUSED, text=type_request.text)
+            # Browser typing must not wait on the last opened host. A missing
+            # page URL was cancelling "type … into input" before any keystrokes.
             return [
                 PageStep(
                     source=clause,
                     phrase=clause.text,
-                    fallback=fallback,
-                    ready=self._readiness(),
+                    fallback=focused,
+                    ready=None,
                 ),
             ]
 

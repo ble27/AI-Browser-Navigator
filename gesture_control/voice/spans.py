@@ -25,6 +25,30 @@ _FILL = re.compile(r"^fill\s+(?P<target>.+?)\s+with\s+(?P<body>.+)$", re.IGNOREC
 _IN_APP = re.compile(r"\s+in\s+(?P<app>[a-z0-9 ]+)$", re.IGNORECASE)
 _FIND_ONLINE = re.compile(r"^find\s+(?P<body>.+)\s+online$", re.IGNORECASE)
 
+# Spoken names that mean "the focused text box", not a uniquely labeled control.
+_GENERIC_INPUT_TARGETS = frozenset(
+    {
+        "box",
+        "field",
+        "input",
+        "input box",
+        "search box",
+        "search field",
+        "text box",
+        "text field",
+        "textbox",
+        "the box",
+        "the field",
+        "the input",
+        "the input box",
+        "the search box",
+        "the search field",
+        "the text box",
+        "the text field",
+        "the textbox",
+    }
+)
+
 
 @dataclass(frozen=True, slots=True)
 class TypeSpan:
@@ -52,6 +76,19 @@ class SearchSpan:
 
 def _collapse(text: str) -> str:
     return " ".join(text.replace("\u00a0", " ").split())
+
+
+def is_generic_input_target(target: str) -> bool:
+    """Return whether ``target`` means the page's input box, not a named field.
+
+    Args:
+        target: Text after ``into`` or before ``with``.
+
+    Returns:
+        True for phrases such as ``input`` or ``the input box``.
+    """
+    folded = " ".join(target.casefold().split()).strip(".,!?")
+    return folded in _GENERIC_INPUT_TARGETS
 
 
 def _strip_payload(text: str) -> str:

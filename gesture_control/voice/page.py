@@ -11,6 +11,7 @@ from dataclasses import dataclass
 from html.parser import HTMLParser
 
 from gesture_control.actions import Intent, IntentType
+from gesture_control.voice.spans import is_generic_input_target
 
 _CLICKABLE_ROLES = frozenset({"button", "link", "checkbox"})
 _TYPEABLE_ROLES = frozenset({"textbox"})
@@ -293,6 +294,15 @@ def _resolve_type(rest: list[str], elements: tuple[PageElement, ...]) -> Intent 
         return None
 
     field_folded = field_name.casefold()
+    if is_generic_input_target(field_folded):
+        textboxes = [element for element in elements if element.role in _TYPEABLE_ROLES]
+        if len(textboxes) == 1:
+            return Intent(
+                IntentType.TYPE_TEXT,
+                target_id=textboxes[0].element_id,
+                text=typed_text,
+            )
+        return None
     matches = _matching_elements(field_folded, elements, _TYPEABLE_ROLES)
     # Ambiguous names return None: speech cannot choose which field to type into.
     if len(matches) != 1:
@@ -384,6 +394,12 @@ def _text_intent_for_field(
     """Build a type/submit intent for one uniquely matched field."""
     if not field_name.strip() or not text.strip():
         return None
+    if is_generic_input_target(field_name):
+        textboxes = [element for element in elements if element.role in _TYPEABLE_ROLES]
+        if len(textboxes) != 1:
+            return None
+        kind = IntentType.SUBMIT_TEXT if submit else IntentType.TYPE_TEXT
+        return Intent(kind, target_id=textboxes[0].element_id, text=text.strip())
     matches = _matching_elements(field_name, elements, _TYPEABLE_ROLES)
     if len(matches) != 1:
         return None

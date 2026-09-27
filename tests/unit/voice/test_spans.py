@@ -20,6 +20,14 @@ def test_type_span_comma_and_in_app() -> None:
     assert span.text == "I love you"
 
 
+def test_type_span_into_input_keeps_the_generic_target() -> None:
+    span = extract_type_span("type what is your name into input")
+    assert span is not None
+    assert span.text == "what is your name"
+    assert span.has_target is True
+    assert span.target == "input"
+
+
 def test_type_span_into_target() -> None:
     span = extract_type_span("type hello into email")
     assert span is not None

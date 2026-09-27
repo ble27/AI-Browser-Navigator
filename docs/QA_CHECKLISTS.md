@@ -193,7 +193,11 @@ Allow the microphone in the separate voice-control window and click
 remain available via `--voice-stt`.
 
 - [ ] Control window opens, Start microphone shows **Listening**, and a spoken
-      **next tab** prints a step report without a local STT model.
+      **next browser** (or **close browser** / **previous browser**) prints a
+      step report without waiting on the current site.
+- [ ] On a page with one text box, **type what is your name into input** types
+      that sentence. With the bridge disconnected, the same phrase still types
+      into the focused field.
 
 Expect ~0.1 s debounce for tab/scroll and up to ~0.6 s hold before free-text
 actions (type / ask / search / page click) flush. Destructive clicks
