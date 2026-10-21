@@ -26,6 +26,7 @@ export function useMicLevels(
   useEffect(() => {
     if (!active) {
       setLevels(silentLevels(size));
+      setError(null);
       return;
     }
     let cancelled = false;

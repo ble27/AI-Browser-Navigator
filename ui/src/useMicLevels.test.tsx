@@ -90,4 +90,14 @@ describe("useMicLevels", () => {
     await flushPromises();
     expect(result.current.error).toBe("Permission denied");
   });
+
+  it("clears a previous error once turned off", async () => {
+    const { result, rerender } = renderHook(
+      ({ on }) => useMicLevels(on, () => Promise.reject(new Error("Permission denied")), 3),
+      { initialProps: { on: true } },
+    );
+    await flushPromises();
+    rerender({ on: false });
+    expect(result.current.error).toBeNull();
+  });
 });

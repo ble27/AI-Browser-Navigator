@@ -57,7 +57,10 @@ export function useSpeechRecognition(
   factoryRef.current = factory;
 
   useEffect(() => {
-    if (!active) return;
+    if (!active) {
+      setError(null);
+      return;
+    }
     const recognition = factoryRef.current();
     if (recognition === null) {
       setSupported(false);

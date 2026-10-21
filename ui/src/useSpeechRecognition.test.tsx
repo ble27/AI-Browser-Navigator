@@ -101,6 +101,16 @@ describe("useSpeechRecognition", () => {
     expect(rec.starts).toBe(1);
   });
 
+  it("clears a previous error once turned off", () => {
+    const rec = new FakeRecognition();
+    const { result, rerender } = renderHook(({ on }) => useSpeechRecognition(on, vi.fn(), () => rec), {
+      initialProps: { on: true },
+    });
+    act(() => rec.onerror?.({ error: "not-allowed" }));
+    rerender({ on: false });
+    expect(result.current.error).toBeNull();
+  });
+
   it("stays quiet for no-speech and aborted but reports other errors", () => {
     const rec = new FakeRecognition();
     const { result } = renderHook(() => useSpeechRecognition(true, vi.fn(), () => rec));
