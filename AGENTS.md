@@ -29,6 +29,9 @@ source .venv/bin/activate
 
 ## Running things
 
+The pill UI lives in `ui/` (`npm install` once). `./scripts/check_ui.sh` runs its
+typecheck, tests, and build; run it with `scripts/check.sh` before committing UI work.
+
 ```bash
 python -m gesture_control.app --debug   # run with camera debug overlay
 ./scripts/check.sh                       # lint + type-check + unit tests (must pass before every commit)

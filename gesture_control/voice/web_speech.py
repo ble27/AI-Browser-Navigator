@@ -148,6 +148,8 @@ def open_chrome_control_window(url: str) -> None:
                 "--args",
                 f"--user-data-dir={profile}",
                 f"--app={url}",
+                # Small window sized for the pill; the page itself is transparent.
+                "--window-size=420,110",
             ]
         )
     except OSError as exc:

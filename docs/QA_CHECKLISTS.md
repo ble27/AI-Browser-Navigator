@@ -241,6 +241,23 @@ actions (type / ask / search / page click) flush. Destructive clicks
 - [ open tasks, can't cancel too quick ] Regression: `gesture-control --voice --voice-mode utterance` still behaves
       as before.
 
+## Voice pill UI (manual; needs Chrome and a microphone)
+
+- [ ] `cd ui && npm run build`, then `python -m gesture_control.app --voice
+      --voice-mode streaming`: a small pill window opens (not a full page).
+- [ ] Allow the mic once; the soundwave bars move while you talk and sit flat
+      when you are silent.
+- [ ] Say **next tab**: interim words appear while speaking, then "Done:
+      navigate browser" briefly, then back to "Say a command".
+- [ ] Say **click a thing that does not exist**: the pill turns red with a reason.
+- [ ] Flip the switch off: wave goes flat, text reads "AI assistant is off", and
+      saying **next tab** does nothing. Flip it on: commands work again.
+- [ ] Press the SafePause hotkey, say a command: pill shows "Input paused" and
+      nothing is dispatched.
+- [ ] Stop the Python process: pill shows "Reconnecting to assistant…".
+- [ ] Deny the mic in Chrome: pill shows "Microphone blocked" (and not after the
+      switch is off).
+
 ## M6 — Accessibility layer
 
 - [ ] First-run calibration wizard produces a usable gesture range for a new

@@ -385,12 +385,19 @@ def run_streaming_voice_session(
         from gesture_control.browser.bridge import ChromePageBridge
         from gesture_control.voice.executor import QueuedStepExecutor
         from gesture_control.voice.live_page import LivePageCommandResolver
+        from gesture_control.voice.pill_wiring import (
+            default_pill_dir,
+            mirror_output,
+            mirror_reports,
+        )
         from gesture_control.voice.planner import DeterministicClausePlanner
         from gesture_control.voice.redecode import MlxWhisperFinalRedecoder
         from gesture_control.voice.segmenter import DeterministicClauseSegmenter
+        from gesture_control.voice.status_hub import StatusHub
         from gesture_control.voice.stream_contracts import StepReport
         from gesture_control.voice.streaming_agent import StreamingVoiceAgent
 
+        hub = StatusHub()
         with ChromePageBridge() as page_bridge:
             backend = MacOSInputBackend(page_bridge=page_bridge)
             page_resolver = LivePageCommandResolver(page_bridge)
@@ -409,12 +416,22 @@ def run_streaming_voice_session(
                 page=page_resolver,
                 focus=_FocusPort(),
                 safe_pause=backend.safe_pause,
-                report=report,
+                report=mirror_reports(hub, report),
             )
             if model_arch == "web_speech":
                 from gesture_control.voice.web_speech import WebSpeechStreamingTranscriber
 
-                transcriber: object = WebSpeechStreamingTranscriber(open_browser=True)
+                pill_dir = default_pill_dir()
+                if pill_dir is None:
+                    print(
+                        "Pill UI is not built (run `npm install && npm run build` in ui/); "
+                        "using the plain control page."
+                    )
+                transcriber: object = WebSpeechStreamingTranscriber(
+                    open_browser=True,
+                    hub=hub,
+                    static_dir=pill_dir,
+                )
             elif model_arch == "mlx_turbo":
                 from gesture_control.voice.mlx_stt import MlxWhisperStreamingTranscriber
 
@@ -434,6 +451,7 @@ def run_streaming_voice_session(
                 DeterministicClauseSegmenter(),
                 DeterministicClausePlanner(),
                 executor,
+                output=mirror_output(hub),
             )
             with SafePauseHotkey(
                 backend.safe_pause,
@@ -456,6 +474,7 @@ def run_streaming_voice_session(
                 except KeyboardInterrupt:
                     agent.stop()
                     executor.close()
+                    hub.close()
     except KeyboardInterrupt:
         print("\nStreaming voice mode stopped.")
         return 0

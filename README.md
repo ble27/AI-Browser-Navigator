@@ -209,6 +209,27 @@ Homework-oriented phrases on WebAssign-style pages:
 - `type 9 into answer 1` / `type 8 into second answer`
 - `submit answer` / `submit`
 
+## Voice pill (Chrome, macOS)
+
+A small Dynamic-Island-style pill is the control surface for streaming voice.
+It shows a live soundwave and what was heard, and has one switch that turns the
+AI on or off for your Chrome pages.
+
+```bash
+cd ui && npm install && npm run build && cd ..   # once, builds ui/dist
+python -m gesture_control.app --voice --voice-mode streaming
+```
+
+Allow the microphone in the pill window and leave it open; commands act on your
+other Chrome window. Speech is recognized by Chrome (audio goes to Google); the
+pipeline that turns clauses into actions stays local.
+
+- **Switch off** stops listening and drops anything heard until you switch back on.
+- **Phases:** idle, listening (interim words), working (final words), done
+  (what ran), error (why it did not run, or "Input paused" under SafePause).
+- UI development: `cd ui && npm run dev` (UI only), `npm test`, `npm run typecheck`.
+- If `ui/dist` is missing the session falls back to the plain control page.
+
 ## Safety
 
 A global safe-pause hotkey and a "fist" pause gesture always disable input
