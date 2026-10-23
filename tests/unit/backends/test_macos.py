@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import sys
 from typing import Any
 
 import pytest
@@ -387,3 +388,18 @@ def test_press_key_uses_shortcut_sender() -> None:
     backend, shortcuts = _backend_with_shortcut_recorder()
     backend.press_key(PressableKey.NEW_ITEM)
     assert shortcuts == [("cmd", "n")]
+
+
+def test_enter_sends_the_main_return_key() -> None:
+    """Spoken enter must be the Mac Return key, not the keypad Enter key."""
+    backend, shortcuts = _backend_with_shortcut_recorder()
+    backend.press_key(PressableKey.ENTER)
+    assert shortcuts == [("return",)]
+
+
+@pytest.mark.skipif(sys.platform != "darwin", reason="Return virtual key is macOS-specific")
+def test_return_token_maps_to_macos_return_keycode() -> None:
+    from gesture_control.backends.macos import _pynput_key
+
+    key = _pynput_key("return")
+    assert getattr(getattr(key, "value", None), "vk", None) == 0x24

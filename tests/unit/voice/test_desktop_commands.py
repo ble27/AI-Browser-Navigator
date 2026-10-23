@@ -37,6 +37,11 @@ def test_parse_key_command_accepts_bare_enter_and_done() -> None:
         assert parse_key_command(phrase) == Intent(IntentType.PRESS_KEY, key=PressableKey.ENTER)
 
 
+def test_parse_key_command_accepts_mac_return_phrasing() -> None:
+    for phrase in ("return", "tap return", "press the return key", "hit the return key"):
+        assert parse_command(phrase) == Intent(IntentType.PRESS_KEY, key=PressableKey.ENTER)
+
+
 def test_parse_chrome_omnibox_focus_command_is_explicit() -> None:
     for phrase in (
         "focus Chrome search bar",

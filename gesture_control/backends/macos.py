@@ -107,6 +107,29 @@ def _browsing_chrome_window_is_focused() -> bool:
     )
 
 
+# pynput names the main Mac Return key ``enter`` (virtual key 0x24). The
+# keypad Enter key is 0x4C and does not submit most text fields, so spoken
+# "enter" / "return" must resolve to this name, not the keypad key.
+_PYNPUT_SPECIAL_KEYS = frozenset({"cmd", "alt", "shift", "left", "right", "enter", "return"})
+
+
+def _pynput_key(name: str) -> object:
+    """Resolve one shortcut token to a pynput key or a literal character.
+
+    Args:
+        name: Symbolic name from a shortcut tuple. ``return`` is the main
+            Return key.
+
+    Returns:
+        A pynput key, or the original character when ``name`` is not special.
+    """
+    from pynput import keyboard
+
+    if name not in _PYNPUT_SPECIAL_KEYS:
+        return name
+    return getattr(keyboard.Key, "enter" if name == "return" else name)
+
+
 def _send_pynput_shortcut(keys: tuple[str, ...]) -> None:
     """Press and release one fixed Chrome shortcut through pynput.
 
@@ -116,14 +139,7 @@ def _send_pynput_shortcut(keys: tuple[str, ...]) -> None:
     from pynput import keyboard
 
     controller = keyboard.Controller()
-    resolved_keys = [
-        (
-            getattr(keyboard.Key, key)
-            if key in {"cmd", "alt", "shift", "left", "right", "enter"}
-            else key
-        )
-        for key in keys
-    ]
+    resolved_keys = [_pynput_key(key) for key in keys]
     for key in resolved_keys:
         controller.press(key)
     for key in reversed(resolved_keys):
@@ -505,7 +521,7 @@ class MacOSInputBackend(InputBackend):
         if self.safe_pause.is_paused:
             return
         chords: dict[PressableKey, tuple[str, ...]] = {
-            PressableKey.ENTER: ("enter",),
+            PressableKey.ENTER: ("return",),
             PressableKey.TAB: ("tab",),
             PressableKey.ESCAPE: ("escape",),
             PressableKey.BACKSPACE: ("backspace",),
