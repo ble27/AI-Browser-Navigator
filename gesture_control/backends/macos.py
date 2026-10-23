@@ -107,10 +107,39 @@ def _browsing_chrome_window_is_focused() -> bool:
     )
 
 
-# pynput names the main Mac Return key ``enter`` (virtual key 0x24). The
-# keypad Enter key is 0x4C and does not submit most text fields, so spoken
-# "enter" / "return" must resolve to this name, not the keypad key.
-_PYNPUT_SPECIAL_KEYS = frozenset({"cmd", "alt", "shift", "left", "right", "enter", "return"})
+def _voice_control_window_is_focused() -> bool:
+    """Return whether the voice pill window currently owns keyboard focus."""
+    frontmost = _frontmost_window_title()
+    if frontmost is None:
+        return False
+    process, _, title = frontmost.partition(" | ")
+    return process == "Google Chrome" and _VOICE_CONTROL_WINDOW_HINT.casefold() in title.casefold()
+
+
+# Shortcut tokens -> pynput ``Key`` member names. pynput names the main Mac
+# Return key ``enter`` (virtual key 0x24); the keypad Enter key is 0x4C and does
+# not submit most text fields, so spoken "enter" / "return" must use this one.
+# Named keys must be listed: pynput rejects multi-character strings such as
+# "backspace", which silently broke backspace, tab, and escape presses.
+_PYNPUT_KEY_NAMES = {
+    "cmd": "cmd",
+    "alt": "alt",
+    "shift": "shift",
+    "left": "left",
+    "right": "right",
+    "enter": "enter",
+    "return": "enter",
+    "backspace": "backspace",
+    "tab": "tab",
+    "escape": "esc",
+}
+# "Delete line" as a person does it: jump to the end of the line, select back
+# to its start, delete the selection.
+_DELETE_LINE_CHORDS: tuple[tuple[str, ...], ...] = (
+    ("cmd", "right"),
+    ("cmd", "shift", "left"),
+    ("backspace",),
+)
 
 
 def _pynput_key(name: str) -> object:
@@ -125,25 +154,32 @@ def _pynput_key(name: str) -> object:
     """
     from pynput import keyboard
 
-    if name not in _PYNPUT_SPECIAL_KEYS:
+    key_name = _PYNPUT_KEY_NAMES.get(name)
+    if key_name is None:
         return name
-    return getattr(keyboard.Key, "enter" if name == "return" else name)
+    return getattr(keyboard.Key, key_name)
 
 
 def _send_pynput_shortcut(keys: tuple[str, ...]) -> None:
-    """Press and release one fixed Chrome shortcut through pynput.
+    """Press and release one fixed shortcut through pynput.
 
     Args:
-        keys: Ordered symbolic modifier/key names from ``_CHROME_SHORTCUTS``.
+        keys: Ordered symbolic modifier/key names.
     """
     from pynput import keyboard
 
     controller = keyboard.Controller()
     resolved_keys = [_pynput_key(key) for key in keys]
-    for key in resolved_keys:
-        controller.press(key)
-    for key in reversed(resolved_keys):
-        controller.release(key)
+    pressed: list[object] = []
+    try:
+        for key in resolved_keys:
+            controller.press(key)
+            pressed.append(key)
+    finally:
+        # Release whatever went down so a failed press cannot leave Command
+        # held for the rest of the session.
+        for key in reversed(pressed):
+            controller.release(key)
 
 
 def _search_web_with_pynput(text: str) -> None:
@@ -302,6 +338,8 @@ class PageBridge(Protocol):
 
 class MacOSInputBackend(InputBackend):
     """Inject mouse input through pynput on macOS."""
+
+    _voice_window_is_focused: Callable[[], bool] = staticmethod(_voice_control_window_is_focused)
 
     def __init__(
         self,
@@ -487,10 +525,24 @@ class MacOSInputBackend(InputBackend):
         """
         if self.safe_pause.is_paused:
             return
+        if action is FocusedPageFieldAction.DELETE_LINE:
+            self._delete_line_with_keys()
+            return
         try:
             self._page_bridge.edit_focused_field(action)
         except RuntimeError as exc:
             raise ValueError(str(exc)) from exc
+
+    def _delete_line_with_keys(self) -> None:
+        """Delete the caret's line with the same keys a person would press.
+
+        Raises:
+            ValueError: If the voice window, not the page, has keyboard focus.
+        """
+        if self._voice_window_is_focused():
+            raise ValueError("Click into the line you want to delete first")
+        for chord in _DELETE_LINE_CHORDS:
+            self._shortcut_sender(chord)
 
     def submit_text(self, target_id: str, text: str) -> None:
         """Type and submit through an indexed field when the gate is open."""

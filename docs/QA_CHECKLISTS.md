@@ -92,7 +92,7 @@ ordinary HTTPS page, and start `--voice`.
       With multiple page search fields, focus command does nothing.
 - [ ] `look up hello world` submits the query and leaves the page field
       unfocused; `clear search` then focuses the unique visible search field and
-      clears it. `delete line` has the same select-all-and-clear behavior.
+      clears it.
 - [ ] In a supported page search field, `type hello world` then `delete word`
       leaves `hello`, even if the caret was previously in the middle.
 - [ ] In a supported page search field or named contenteditable composer,
@@ -253,7 +253,12 @@ actions (type / ask / search / page click) flush. Destructive clicks
 - [ ] Focus a multi-line text area, put the cursor in the middle line, and say
       **delete line**. Only that line disappears. The lines above and below stay.
 - [ ] The same command in a single-line input clears that input.
-- [ ] **delete line** works in a normal text field, not only a search box.
+- [ ] **delete line** works in a normal text field, not only a search box. It
+      works with the page bridge disconnected too.
+- [ ] Click the pill, then say **delete line**: the pill shows "Click into the
+      line you want to delete first" and nothing is deleted.
+- [ ] Click your page, then say **focus search bar**: the address bar is
+      selected. **press backspace** and **press tab** also work.
 
 ## Voice pill UI (manual; needs Chrome and a microphone)
 

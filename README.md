@@ -169,8 +169,10 @@ unpacked-extension setup and WebAssign answer/submit phrases.
 
 Voice commands keep Chrome's browser UI separate from an app's HTML controls.
 
-- `focus Chrome search bar` focuses Chrome's **omnibox** (address/search bar).
-  `focus Chrome address bar` and `focus Chrome omnibox` are aliases.
+- `focus search bar` or `focus Chrome search bar` focuses Chrome's **omnibox**
+  (address/search bar) with Command+L. `focus address bar`, `focus url bar`,
+  and `focus omnibox` are aliases. It needs Chrome's browser window in front,
+  not the voice pill.
 - `focus app search bar` focuses the active app's unique HTML search field.
   It requires the Chrome page bridge; `focus page search field` is an alias.
 - After either focus command, `type <text>` enters literal text in that focused
@@ -182,10 +184,12 @@ Voice commands keep Chrome's browser UI separate from an app's HTML controls.
 - `unfocus` blurs a focused app search field or page composer. `delete word`
   removes the word before the cursor in that field, and `clear search` clears
   only a focused search field.
-- `delete line` removes the line where the blinking cursor is, in any focused
-  text field (a single-line input is cleared). It does not clear the rest of
-  a multi-line field. These commands require the page bridge and do not match
-  phrases such as `type delete word` or `search for delete word`.
+- `delete line` presses Command+Right, Command+Shift+Left, then Delete, so it
+  removes the text on the line where the blinking cursor is, in any focused
+  text field. It needs no page bridge, and it reports an error if the voice
+  pill has keyboard focus instead of your page. `unfocus`, `delete word` and
+  `clear search` require the page bridge. None of these match phrases such as
+  `type delete word` or `search for delete word`.
 
 "Chrome search bar" always means the omnibox. "App search bar" always means a
 web page's HTML field. This differs from `search for <text>` behavior,

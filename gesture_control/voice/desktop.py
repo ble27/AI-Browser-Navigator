@@ -14,6 +14,13 @@ _CHROME_OMNIBOX_FOCUS_PHRASES = frozenset(
         "focus chrome search bar",
         "focus chrome address bar",
         "focus chrome omnibox",
+        "focus search bar",
+        "focus the search bar",
+        "focus address bar",
+        "focus the address bar",
+        "focus url bar",
+        "focus omnibox",
+        "focus the omnibox",
     },
 )
 _FOCUSED_PAGE_FIELD_COMMANDS = {

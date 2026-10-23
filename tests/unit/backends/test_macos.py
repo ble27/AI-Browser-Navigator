@@ -403,3 +403,38 @@ def test_return_token_maps_to_macos_return_keycode() -> None:
 
     key = _pynput_key("return")
     assert getattr(getattr(key, "value", None), "vk", None) == 0x24
+
+
+@pytest.mark.skipif(sys.platform != "darwin", reason="pynput key names are checked on macOS")
+@pytest.mark.parametrize(
+    ("token", "expected"),
+    [("backspace", "backspace"), ("tab", "tab"), ("escape", "esc"), ("left", "left")],
+)
+def test_named_keys_resolve_to_pynput_keys_not_strings(token: str, expected: str) -> None:
+    from gesture_control.backends.macos import _pynput_key
+
+    assert getattr(_pynput_key(token), "name", None) == expected
+
+
+def test_delete_line_selects_to_line_start_then_deletes_without_the_bridge() -> None:
+    backend, bridge = _backend_with_page_bridge()
+    sent: list[tuple[str, ...]] = []
+    backend._shortcut_sender = sent.append
+    backend._voice_window_is_focused = lambda: False
+
+    backend.edit_focused_page_field(FocusedPageFieldAction.DELETE_LINE)
+
+    assert sent == [("cmd", "right"), ("cmd", "shift", "left"), ("backspace",)]
+    assert bridge.field_actions == []
+
+
+def test_delete_line_refuses_when_the_voice_window_has_focus() -> None:
+    backend, _bridge = _backend_with_page_bridge()
+    sent: list[tuple[str, ...]] = []
+    backend._shortcut_sender = sent.append
+    backend._voice_window_is_focused = lambda: True
+
+    with pytest.raises(ValueError, match="Click into"):
+        backend.edit_focused_page_field(FocusedPageFieldAction.DELETE_LINE)
+
+    assert sent == []

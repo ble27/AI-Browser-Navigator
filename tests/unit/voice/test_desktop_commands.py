@@ -134,3 +134,16 @@ def test_parse_ask_bare_opens_assistant() -> None:
     assert ask is not None
     assert ask.url == "https://chatgpt.com"
     assert ask.query == ""
+
+
+def test_focus_search_bar_phrases_focus_the_chrome_omnibox() -> None:
+    for phrase in (
+        "focus search bar",
+        "focus the search bar",
+        "focus address bar",
+        "focus url bar",
+        "focus omnibox",
+        "focus chrome search bar",
+    ):
+        assert parse_chrome_omnibox_focus_command(phrase) == Intent(IntentType.FOCUS_CHROME_OMNIBOX)
+    assert parse_chrome_omnibox_focus_command("focus app search bar") is None
