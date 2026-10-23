@@ -35,7 +35,14 @@ _FIELD_SUFFIXES = frozenset({"box", "field", "textbox", "button", "link"})
 _SUBMIT_NAME_TOKENS = frozenset({"submit", "submit answer", "submit answers", "check answer"})
 _ANSWER_FIELD_TOKENS = frozenset({"answer", "answers", "response", "responses"})
 _CLICK_PREFIX_SKIP = frozenset({"on", "the", "a", "an"})
-_ROLE_WORDS = {"link": "link", "links": "link", "button": "button", "buttons": "button"}
+_ROLE_WORDS = {
+    "link": "link",
+    "links": "link",
+    "button": "button",
+    "buttons": "button",
+    "result": "result",
+    "results": "result",
+}
 # Match chrome_extension content_script humanizeIdentifier: only split a→A.
 _CAMEL_BOUNDARY = re.compile(r"([a-z])([A-Z])")
 # Keep speakable names bounded even when pages dump huge data-label values.
@@ -73,11 +80,13 @@ class PageElement:
             elements in document order.
         role: Accessibility role (``button``, ``link``, or ``textbox``).
         name: Accessible name used for speech matching.
+        result: True for an organic search-result link.
     """
 
     element_id: str
     role: str
     name: str
+    result: bool = False
 
 
 def index_html(html: str) -> tuple[PageElement, ...]:
@@ -289,7 +298,15 @@ def _role_only_click(
     if len(tokens) != 1 or tokens[0] not in _ROLE_WORDS:
         return False, None
     role = _ROLE_WORDS[tokens[0]]
-    pool = [element for element in elements if element.role == role]
+    results = [element for element in elements if element.role == "link" and element.result]
+    if role == "result":
+        pool = results
+    elif role == "link" and ordinal is not None and results:
+        # On a results page "the first link" means the first result, not the
+        # header and skip links that come before it in the document.
+        pool = results
+    else:
+        pool = [element for element in elements if element.role == role]
     chosen = _pick_by_ordinal(pool, ordinal)
     if chosen is None:
         return True, None

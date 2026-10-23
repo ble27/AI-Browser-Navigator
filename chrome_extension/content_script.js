@@ -296,7 +296,15 @@
         }
         const name = accessibleName(element);
         if (role && name && isVisible(element)) {
-          elements.push({ id: idFor(element), role, name });
+          const entry = { id: idFor(element), role, name };
+          if (
+            role === "link" &&
+            typeof isSearchResultLink === "function" &&
+            isSearchResultLink(element)
+          ) {
+            entry.result = true;
+          }
+          elements.push(entry);
         }
       }
     }

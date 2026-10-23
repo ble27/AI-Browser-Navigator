@@ -243,6 +243,14 @@ actions (type / ask / search / page click) flush. Destructive clicks
 - [ open tasks, can't cancel too quick ] Regression: `gesture-control --voice --voice-mode utterance` still behaves
       as before.
 
+## Search results
+
+- [ ] Reload the extension (version 0.3.0) and refresh the tab. On a Google
+      results page say **click the first link**: the first organic result opens,
+      not "Skip to main content", Images, or a sponsored result.
+- [ ] **click the third result** opens the third organic result. Repeat on Bing
+      and DuckDuckGo.
+
 ## Focused-field editing
 
 - [ ] After pulling extension changes: open `chrome://extensions`, reload **AI

@@ -126,3 +126,28 @@ def test_parse_seo_meta_treats_null_fields_as_empty() -> None:
     assert meta.og_title == ""
     assert meta.keywords == ()
     assert meta.canonical_url == ""
+
+
+def test_snapshot_marks_search_result_links() -> None:
+    snapshot = _parse_snapshot(
+        {
+            "url": "https://www.google.com/search?q=x",
+            "title": "x",
+            "elements": [
+                {"id": "n:1", "role": "link", "name": "Images"},
+                {"id": "n:2", "role": "link", "name": "Docs", "result": True},
+            ],
+        }
+    )
+    assert [element.result for element in snapshot.elements] == [False, True]
+
+
+def test_snapshot_rejects_a_non_boolean_result_flag() -> None:
+    with pytest.raises(BridgeError):
+        _parse_snapshot(
+            {
+                "url": "https://x",
+                "title": "t",
+                "elements": [{"id": "a", "role": "link", "name": "n", "result": "yes"}],
+            }
+        )

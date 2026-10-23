@@ -53,11 +53,14 @@ class PageElement:
         element_id: Opaque stable-in-page identifier.
         role: One of button, link, textbox, or checkbox.
         name: Accessible-ish name presented for command matching.
+        result: True for an organic search-result link, so "first link" on a
+            results page skips header and ad links.
     """
 
     element_id: str
     role: str
     name: str
+    result: bool = False
 
 
 @dataclass(frozen=True, slots=True)
@@ -434,7 +437,14 @@ def _parse_snapshot(result: dict[str, object]) -> PageSnapshot:
         raise BridgeError("Chrome returned invalid page elements")
     elements: list[PageElement] = []
     for raw_element in raw_elements:
-        if not isinstance(raw_element, dict) or set(raw_element) != {"id", "role", "name"}:
+        if not isinstance(raw_element, dict) or set(raw_element) - {"result"} != {
+            "id",
+            "role",
+            "name",
+        }:
+            raise BridgeError("Chrome returned an invalid page element")
+        result_flag = raw_element.get("result", False)
+        if not isinstance(result_flag, bool):
             raise BridgeError("Chrome returned an invalid page element")
         element_id = raw_element["id"]
         role = raw_element["role"]
@@ -450,7 +460,9 @@ def _parse_snapshot(result: dict[str, object]) -> PageSnapshot:
         ):
             raise BridgeError("Chrome returned an invalid page element")
         assert isinstance(role, str)
-        elements.append(PageElement(element_id=element_id, role=role, name=name))
+        elements.append(
+            PageElement(element_id=element_id, role=role, name=name, result=result_flag)
+        )
     seo = _parse_seo_meta(result.get("seo"))
     return PageSnapshot(url=url, title=title, elements=tuple(elements), seo=seo)
 

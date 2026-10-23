@@ -226,6 +226,7 @@ class LivePageCommandResolver:
                 element_id=element.element_id,
                 role=element.role,
                 name=element.name,
+                result=element.result,
             )
             for element in snapshot.elements
         )

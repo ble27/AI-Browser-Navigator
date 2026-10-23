@@ -331,3 +331,40 @@ def test_checkbox_is_clickable_by_name() -> None:
     assert resolve_page_command("click remember me", elements) == Intent(
         IntentType.CLICK_ELEMENT, target_id="e3"
     )
+
+
+def _search_page() -> tuple[PageElement, ...]:
+    """A results page: header links first, then ads, then organic results."""
+    return (
+        PageElement(element_id="n1", role="link", name="Skip to main content"),
+        PageElement(element_id="n2", role="link", name="Images"),
+        PageElement(element_id="r1", role="link", name="Python docs", result=True),
+        PageElement(element_id="r2", role="link", name="Real Python", result=True),
+        PageElement(element_id="r3", role="link", name="Wikipedia", result=True),
+        PageElement(element_id="b1", role="button", name="Search"),
+    )
+
+
+def test_first_link_on_a_results_page_is_the_first_result_not_the_header() -> None:
+    page = _search_page()
+    for phrase in ("click first link", "click the first link", "open the first result"):
+        assert resolve_page_command(phrase, page) == Intent(
+            IntentType.CLICK_ELEMENT, target_id="r1"
+        ), phrase
+    assert resolve_page_command("click the third result", page) == Intent(
+        IntentType.CLICK_ELEMENT, target_id="r3"
+    )
+    assert resolve_page_command("click the second link", page) == Intent(
+        IntentType.CLICK_ELEMENT, target_id="r2"
+    )
+    assert resolve_page_command("click the fifth result", page) is None
+
+
+def test_first_link_without_results_still_counts_every_link() -> None:
+    page = tuple(
+        PageElement(element_id=f"e{i}", role="link", name=f"Link {i}") for i in range(1, 4)
+    )
+    assert resolve_page_command("click first link", page) == Intent(
+        IntentType.CLICK_ELEMENT, target_id="e1"
+    )
+    assert resolve_page_command("click the first result", page) is None
