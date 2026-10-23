@@ -18,6 +18,11 @@ from gesture_control.voice.stream_contracts import (
 PARTIAL_DEBOUNCE_S = 0.2
 FAST_CLOSED_DEBOUNCE_S = 0.1
 FREE_TEXT_SILENCE_S = 0.6
+# Bare "type …" / "write …" commits once the words stop changing. Short enough
+# that dictation does not wait out Chrome's final result, long enough to avoid
+# cutting a word in half. Users who pause while speaking can choose the longer
+# free-text window from the pill settings.
+TYPE_COMMAND_SILENCE_S = 0.2
 
 _FILLER = frozenset(
     {
@@ -158,6 +163,34 @@ def partition_steps(steps: list[Step]) -> tuple[list[Step], list[Step]]:
         else:
             deferred.append(step)
     return immediate, deferred
+
+
+def is_type_only_steps(steps: list[Step]) -> bool:
+    """Return whether every step is dictation into a field.
+
+    Ask macros include a following Enter and are not type-only, so they keep
+    the longer free-text wait.
+
+    Args:
+        steps: Planner output for one clause.
+
+    Returns:
+        True when committing early cannot press Enter ahead of the text.
+    """
+    if not steps:
+        return False
+    for step in steps:
+        if isinstance(step, ResolvedStep) and step.intent.kind in {
+            IntentType.TYPE_FOCUSED,
+            IntentType.TYPE_TEXT,
+        }:
+            continue
+        if isinstance(step, PageStep) and step.phrase.casefold().lstrip().startswith(
+            ("type ", "write ")
+        ):
+            continue
+        return False
+    return True
 
 
 def is_fast_closed_steps(steps: list[Step]) -> bool:

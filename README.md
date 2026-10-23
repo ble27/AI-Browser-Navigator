@@ -172,8 +172,11 @@ Voice commands keep Chrome's browser UI separate from an app's HTML controls.
 - `focus app search bar` focuses the active app's unique HTML search field.
   It requires the Chrome page bridge; `focus page search field` is an alias.
 - After either focus command, `type <text>` enters literal text in that focused
-  field. `enter`, `return`, or `done` presses the Mac Return key (not the
-  keypad Enter key) to submit it. No focus command types or submits text.
+  field. Streaming dictation starts about 0.2 seconds after the words stop
+  changing, instead of waiting for Chrome to finalize the utterance. A later
+  correction appends only the new letters. `enter`, `return`, or `done`
+  presses the Mac Return key (not the keypad Enter key) to submit it. No
+  focus command types or submits text.
 - `unfocus` blurs a focused app search field or page composer. `delete word`
   removes the word before the cursor in that field, and `clear search` clears
   only a focused search field.
