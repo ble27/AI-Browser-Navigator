@@ -245,6 +245,11 @@ actions (type / ask / search / page click) flush. Destructive clicks
 
 ## Focused-field editing
 
+- [ ] After pulling extension changes: open `chrome://extensions`, reload **AI
+      Gestures Page Bridge** (it should read version 0.2.0), then refresh each
+      page you want to control. Open tabs keep running the old content script
+      until they are refreshed.
+
 - [ ] Focus a multi-line text area, put the cursor in the middle line, and say
       **delete line**. Only that line disappears. The lines above and below stay.
 - [ ] The same command in a single-line input clears that input.

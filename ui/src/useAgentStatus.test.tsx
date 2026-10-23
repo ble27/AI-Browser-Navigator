@@ -83,4 +83,28 @@ describe("useAgentStatus", () => {
     unmount();
     expect(source.closed).toBe(true);
   });
+
+  it("posts only the four settings fields, so a second change is still accepted", async () => {
+    const source = new FakeSource();
+    const update = vi.fn(async (settings: object) => settings as never);
+    const { result } = renderHook(() =>
+      useAgentStatus({ streamFactory: () => source, updateSettingsRequest: update }),
+    );
+    // The bridge echoes every change as an event that carries a "type" key.
+    source.send({
+      type: "settings",
+      scroll: "large",
+      typing: "fast",
+      textSize: "default",
+      highContrast: false,
+    });
+    await act(async () => result.current.updateSettings({ ...result.current.settings, scroll: "small" }));
+    expect(update).toHaveBeenLastCalledWith({
+      scroll: "small",
+      typing: "fast",
+      textSize: "default",
+      highContrast: false,
+    });
+    expect(result.current.settings).not.toHaveProperty("type");
+  });
 });

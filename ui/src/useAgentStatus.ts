@@ -6,7 +6,7 @@ import {
   type EventSourceFactory,
 } from "./api";
 import { initialPillState, pillReducer, type PillState } from "./pillState";
-import { defaultSettings, isVoiceSettings, type VoiceSettings } from "./types";
+import { defaultSettings, isVoiceSettings, pickSettings, type VoiceSettings } from "./types";
 
 /** How long a result ("done" / error) stays on screen before returning to idle. */
 export const SETTLE_MS = 2500;
@@ -52,9 +52,9 @@ export function useAgentStatus(options: AgentStatusOptions = {}): AgentStatus {
         {
           onEvent: (event) => {
             dispatch({ kind: "event", event });
-            if (event.type === "settings") setSettings(event);
+            if (event.type === "settings") setSettings(pickSettings(event));
             if (event.type === "state" && isVoiceSettings(event.settings)) {
-              setSettings(event.settings);
+              setSettings(pickSettings(event.settings));
             }
           },
           onConnection: (connected) => dispatch({ kind: "connection", connected }),
@@ -81,8 +81,9 @@ export function useAgentStatus(options: AgentStatusOptions = {}): AgentStatus {
 
   const updateSettings = useCallback((next: VoiceSettings) => {
     const previous = settingsRef.current;
-    setSettings(next);
-    void updateSettingsRequest(next).catch(() => setSettings(previous));
+    const clean = pickSettings(next);
+    setSettings(clean);
+    void updateSettingsRequest(clean).catch(() => setSettings(previous));
   }, [updateSettingsRequest]);
 
   return { ...state, toggle, toggleError, settings, updateSettings };

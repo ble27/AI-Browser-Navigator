@@ -27,6 +27,19 @@ export function isVoiceSettings(value: unknown): value is VoiceSettings {
   );
 }
 
+/**
+ * Copy just the settings fields. Bridge events carry a `type` key that the
+ * settings endpoint rejects, so it must never be sent back.
+ */
+export function pickSettings(value: VoiceSettings): VoiceSettings {
+  return {
+    scroll: value.scroll,
+    typing: value.typing,
+    textSize: value.textSize,
+    highContrast: value.highContrast,
+  };
+}
+
 /** Events streamed by the Python bridge at `/api/events`. */
 export type AgentEvent =
   | { type: "state"; enabled: boolean; events: AgentEvent[]; settings?: VoiceSettings }
