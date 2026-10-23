@@ -86,11 +86,6 @@ def test_snapshot_url_allowlist_rejects_spoofs_and_non_loopback_http(url: str) -
         {
             "url": "https://x",
             "title": "t",
-            "elements": [{"id": "e1", "role": "button", "name": "n" * 501}],
-        },
-        {
-            "url": "https://x",
-            "title": "t",
             "elements": [{"id": "i" * 201, "role": "button", "name": "ok"}],
         },
     ],
@@ -151,3 +146,16 @@ def test_snapshot_rejects_a_non_boolean_result_flag() -> None:
                 "elements": [{"id": "a", "role": "link", "name": "n", "result": "yes"}],
             }
         )
+
+
+def test_parse_snapshot_truncates_overlong_element_name() -> None:
+    """An over-long name is shortened instead of invalidating the snapshot."""
+    snapshot = _parse_snapshot(
+        {
+            "url": "https://x",
+            "title": "t",
+            "elements": [{"id": "e1", "role": "link", "name": "n" * 900}],
+        }
+    )
+
+    assert len(snapshot.elements[0].name) == 500

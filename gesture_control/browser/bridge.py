@@ -547,10 +547,11 @@ def _parse_snapshot(result: dict[str, object]) -> PageSnapshot:
             or role not in {"button", "link", "textbox", "checkbox"}
             or not isinstance(name, str)
             or not name
-            or len(name) > _MAX_ELEMENT_NAME_CHARS
         ):
             raise BridgeError("Chrome returned an invalid page element")
         assert isinstance(role, str)
+        # One verbose link must not invalidate the whole snapshot.
+        name = name[:_MAX_ELEMENT_NAME_CHARS]
         elements.append(
             PageElement(element_id=element_id, role=role, name=name, result=result_flag)
         )

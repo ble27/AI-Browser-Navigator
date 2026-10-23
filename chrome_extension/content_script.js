@@ -301,7 +301,7 @@
         if (element.getAttribute("role") === "searchbox") {
           role = "textbox";
         }
-        const name = accessibleName(element);
+        const name = accessibleName(element).slice(0, 500);
         if (role && name && isVisible(element)) {
           const entry = { id: idFor(element), role, name };
           if (
