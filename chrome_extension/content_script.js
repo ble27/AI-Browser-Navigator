@@ -308,6 +308,37 @@
     };
   }
 
+  function activateTarget(target) {
+    // Off-screen links fail the visibility check on the next command, and an
+    // untrusted content-script click does not navigate an <a href> by itself.
+    if (typeof target.scrollIntoView === "function") {
+      target.scrollIntoView({ block: "center", inline: "nearest" });
+    }
+    if (target instanceof HTMLAnchorElement && target.hasAttribute("href")) {
+      const event = new MouseEvent("click", {
+        bubbles: true,
+        cancelable: true,
+        view: window
+      });
+      const proceeded = target.dispatchEvent(event);
+      if (!proceeded || typeof decideLinkActivation !== "function") {
+        return;
+      }
+      const decision = decideLinkActivation({
+        href: target.href,
+        target: target.getAttribute("target"),
+        download: target.hasAttribute("download")
+      });
+      if (decision === "assign") {
+        window.location.assign(target.href);
+      } else if (decision === "blank") {
+        window.open(target.href, "_blank", "noopener,noreferrer");
+      }
+      return;
+    }
+    target.click();
+  }
+
   function resolveTarget(targetId) {
     if (typeof targetId !== "string" || targetId.length === 0 || targetId.length > 200) {
       throw new Error("target_id must be a non-empty string");
@@ -545,7 +576,7 @@
     }
     const target = resolveTarget(request.target_id);
     if (request.operation === "click") {
-      target.click();
+      activateTarget(target);
       return {};
     }
     if (request.operation === "focus") {

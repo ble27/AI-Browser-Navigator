@@ -17,6 +17,7 @@
         "http://localhost/*"
       ],
       "js": [
+        "link_activation.js",
         "content_script.js"
       ],
       "run_at": "document_idle",

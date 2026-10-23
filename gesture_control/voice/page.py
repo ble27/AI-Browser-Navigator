@@ -35,6 +35,7 @@ _FIELD_SUFFIXES = frozenset({"box", "field", "textbox", "button", "link"})
 _SUBMIT_NAME_TOKENS = frozenset({"submit", "submit answer", "submit answers", "check answer"})
 _ANSWER_FIELD_TOKENS = frozenset({"answer", "answers", "response", "responses"})
 _CLICK_PREFIX_SKIP = frozenset({"on", "the", "a", "an"})
+_ROLE_WORDS = {"link": "link", "links": "link", "button": "button", "buttons": "button"}
 # Match chrome_extension content_script humanizeIdentifier: only split a→A.
 _CAMEL_BOUNDARY = re.compile(r"([a-z])([A-Z])")
 # Keep speakable names bounded even when pages dump huge data-label values.
@@ -257,6 +258,44 @@ def _answer_text_intent(
     return Intent(IntentType.TYPE_TEXT, target_id=chosen.element_id, text=text)
 
 
+def _role_only_click(
+    spoken_name: str,
+    elements: tuple[PageElement, ...],
+) -> tuple[bool, Intent | None]:
+    """Resolve ``click the second link`` onto one role, ignoring accessible names.
+
+    Args:
+        spoken_name: Tokens after the click verb.
+        elements: Indexed page elements.
+
+    Returns:
+        ``(True, intent)`` when the phrase only names a role (and optional
+        ordinal). ``intent`` is ``None`` when that role is missing or ambiguous.
+        ``(False, None)`` when the phrase names a specific control.
+    """
+    tokens = _normalize_name(spoken_name).casefold().strip(".,!?").split()
+    while tokens and tokens[0] in _CLICK_PREFIX_SKIP:
+        tokens = tokens[1:]
+    ordinal: int | None = None
+    if len(tokens) >= 2 and tokens[0] in _ORDINALS:
+        ordinal = _ORDINALS[tokens[0]]
+        tokens = tokens[1:]
+    elif len(tokens) >= 2 and tokens[-1] in _ORDINALS:
+        ordinal = _ORDINALS[tokens[-1]]
+        tokens = tokens[:-1]
+    elif len(tokens) >= 2 and tokens[-1].isdigit():
+        ordinal = int(tokens[-1])
+        tokens = tokens[:-1]
+    if len(tokens) != 1 or tokens[0] not in _ROLE_WORDS:
+        return False, None
+    role = _ROLE_WORDS[tokens[0]]
+    pool = [element for element in elements if element.role == role]
+    chosen = _pick_by_ordinal(pool, ordinal)
+    if chosen is None:
+        return True, None
+    return True, Intent(IntentType.CLICK_ELEMENT, target_id=chosen.element_id)
+
+
 def _pick_by_ordinal(matches: list[PageElement], ordinal: int | None) -> PageElement | None:
     """Pick one match by 1-based ordinal, or the sole match when unspecified."""
     if ordinal is None:
@@ -283,6 +322,9 @@ def _resolve_click(rest: list[str], elements: tuple[PageElement, ...]) -> Intent
         return None
 
     spoken_name = " ".join(rest).casefold()
+    role_only, role_intent = _role_only_click(spoken_name, elements)
+    if role_only:
+        return role_intent
     matches = _matching_elements(spoken_name, elements, _CLICKABLE_ROLES)
     if len(matches) == 0:
         # Saying "click the search box" means focus that textbox, not submit it.

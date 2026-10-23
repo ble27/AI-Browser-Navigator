@@ -35,5 +35,6 @@ jobs:
       - name: Validate Chrome extension assets
         run: |
           node --check chrome_extension/content_script.js
+          node --check chrome_extension/link_activation.js
           node --check chrome_extension/service_worker.js
           python -m json.tool chrome_extension/manifest.json >/dev/null

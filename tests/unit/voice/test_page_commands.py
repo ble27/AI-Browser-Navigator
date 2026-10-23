@@ -177,6 +177,28 @@ def test_type_without_into_returns_none() -> None:
     assert resolve_page_command("type hello", elements) is None
 
 
+def test_click_the_only_link_and_an_ordinal_link() -> None:
+    links = (
+        PageElement(element_id="e1", role="link", name="Home"),
+        PageElement(element_id="e2", role="link", name="Pricing"),
+        PageElement(element_id="e3", role="button", name="Buy"),
+    )
+    assert resolve_page_command("click the second link", links) == Intent(
+        IntentType.CLICK_ELEMENT, target_id="e2"
+    )
+    assert resolve_page_command("open link 1", links) == Intent(
+        IntentType.CLICK_ELEMENT, target_id="e1"
+    )
+    assert resolve_page_command("click link", links) is None
+    only = (PageElement(element_id="e9", role="link", name="Docs"),)
+    assert resolve_page_command("click the link", only) == Intent(
+        IntentType.CLICK_ELEMENT, target_id="e9"
+    )
+    assert resolve_page_command("click the pricing link", links) == Intent(
+        IntentType.CLICK_ELEMENT, target_id="e2"
+    )
+
+
 def test_press_and_partial_button_name_resolve_uniquely() -> None:
     elements = (
         PageElement(element_id="e1", role="button", name="Add to Cart"),
