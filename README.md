@@ -1,4 +1,4 @@
-# AI Gestures Tool
+# AI Browser Navigator
 
 Hands-free control of your computer with **offline hand-gesture tracking** and
 **voice commands**. Say "search for hand tracking", then "click the first
