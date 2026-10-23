@@ -223,3 +223,30 @@ def test_safe_pause_during_readiness_skips_and_drains() -> None:
     assert StepOutcome.SKIPPED_PAUSED in outcomes
     assert StepOutcome.CANCELLED in outcomes
     assert StepOutcome.FAILED not in outcomes
+
+
+def test_page_step_surfaces_bridge_unavailable_detail_when_no_fallback() -> None:
+    from gesture_control.voice.live_page import PageCommandUnavailableError
+
+    class _UnavailablePage:
+        def current_url(self) -> str | None:
+            return None
+
+        def resolve(self, phrase: str) -> Intent | None:
+            del phrase
+            raise PageCommandUnavailableError("Chrome page bridge is disconnected")
+
+    backend = _RecordingBackend()
+    reports: list[StepReport] = []
+    executor = QueuedStepExecutor(
+        mapper=ActionMapper(backend),
+        page=_UnavailablePage(),
+        focus=None,
+        safe_pause=SafePause(),
+        report=reports.append,
+    )
+    executor.submit([PageStep(source=_clause("click first link"), phrase="click first link")])
+    executor.close()
+    assert len(reports) == 1
+    assert reports[0].outcome is StepOutcome.FAILED
+    assert "disconnected" in reports[0].detail

@@ -108,13 +108,20 @@
         return valueName;
       }
     }
-    const imageAlt = nestedImageAlt(element);
-    if (imageAlt) {
-      return imageAlt;
+    if (element instanceof HTMLAnchorElement) {
+      const heading = element.querySelector("h1, h2, h3, h4");
+      const headingText = heading ? normalizedText(heading.innerText) : "";
+      if (headingText) {
+        return headingText;
+      }
     }
     const inner = normalizedText(element.innerText);
     if (inner) {
       return inner;
+    }
+    const imageAlt = nestedImageAlt(element);
+    if (imageAlt) {
+      return imageAlt;
     }
     const title = normalizedText(element.getAttribute("title"));
     if (title) {
@@ -340,7 +347,10 @@
       if (decision === "assign") {
         window.location.assign(target.href);
       } else if (decision === "blank") {
-        window.open(target.href, "_blank", "noopener,noreferrer");
+        const opened = window.open(target.href, "_blank", "noopener,noreferrer");
+        if (!opened) {
+          window.location.assign(target.href);
+        }
       }
       return;
     }
@@ -685,7 +695,16 @@
     return false;
   });
 
-  // Wake the MV3 service worker after every supported page load. The worker
-  // owns Native Messaging and may have been suspended since the app started.
-  chrome.runtime.sendMessage({ type: "page_bridge_ready" }).catch(() => {});
+  // Wake the MV3 service worker after every supported page load and whenever
+  // the user focuses or switches to an already-open tab.
+  function notifyBridgeReady() {
+    chrome.runtime.sendMessage({ type: "page_bridge_ready" }).catch(() => {});
+  }
+  window.addEventListener("focus", notifyBridgeReady);
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "visible") {
+      notifyBridgeReady();
+    }
+  });
+  notifyBridgeReady();
 })();

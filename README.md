@@ -152,9 +152,11 @@ installed Chrome page bridge adds active-page commands:
   `push the Buy button` / `mouse click on search`
 - `click the pricing link` / `click the second link` / `click the link` when
   only one link is on the page. On a Google, Bing, or DuckDuckGo results page,
-  `click the first link` and `click the first result` open the first organic
-  result, skipping header and sponsored links. Link clicks scroll the link into view and
-  follow its `https` address when the page does not handle the click itself.
+  `click the first link`, `click the first result`, `open the first result`,
+  `click top link`, and `open <topic> first result` open the first matching
+  organic result, skipping header, navigation, and sponsored links. Link clicks
+  scroll the link into view and follow its `https` address when the page does
+  not handle the click itself.
 - `focus search` / `click the search box`
 - `type hello into email` / `fill email with hello`
 - `search for mechanical keyboard` uses the page's unique named search field

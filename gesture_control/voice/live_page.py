@@ -5,6 +5,7 @@ from __future__ import annotations
 import threading
 import time
 from difflib import SequenceMatcher
+from urllib.parse import urlparse
 
 from gesture_control.actions import Intent, IntentType
 from gesture_control.browser.bridge import BridgeError, ChromePageBridge, PageSnapshot
@@ -71,6 +72,96 @@ _RANK_MARGIN = 0.12
 # readiness loop polls at READY_POLL_INTERVAL_S (0.25s) and expects a fast
 # "still disconnected" answer, not a multi-second block on every iteration.
 _CURRENT_URL_POLL_TIMEOUT_S = 0.3
+# Non-result UI links that precede or surround organic results on Google, Bing,
+# and DuckDuckGo when a tab has not yet reloaded the result-tagging script.
+_SEARCH_CHROME_LINK_NAMES = frozenset(
+    {
+        "skip to main content",
+        "accessibility help",
+        "accessibility feedback",
+        "google",
+        "bing",
+        "duckduckgo",
+        "sign in",
+        "login",
+        "log in",
+        "all",
+        "images",
+        "videos",
+        "shopping",
+        "news",
+        "books",
+        "maps",
+        "flights",
+        "finance",
+        "short videos",
+        "forums",
+        "web",
+        "tools",
+        "search tools",
+        "filters and topics",
+        "safesearch",
+        "any time",
+        "all results",
+        "more",
+        "settings",
+        "quick settings",
+        "privacy",
+        "terms",
+        "advertising",
+        "business",
+        "about",
+        "how search works",
+        "next",
+        "previous",
+        "feedback",
+        "learn more",
+        "see more",
+        "more results",
+        "try ai mode",
+        "ai mode",
+    }
+)
+
+
+def _is_search_results_snapshot(snapshot: PageSnapshot) -> bool:
+    """Return whether ``snapshot`` comes from a major search results page."""
+    parsed = urlparse(snapshot.url)
+    host = (parsed.hostname or "").casefold().removeprefix("www.")
+    path = parsed.path.casefold()
+    if host.startswith("google.") and path.startswith("/search"):
+        return True
+    if host in {"bing.com", "search.brave.com"} and path.startswith("/search"):
+        return True
+    if host == "duckduckgo.com" and ("q=" in parsed.query.casefold() or path != "/"):
+        return True
+    return snapshot.title.casefold().endswith(" - google search")
+
+
+def _elements_from_snapshot(snapshot: PageSnapshot) -> tuple[PageElement, ...]:
+    """Convert bridge elements and infer organic results when untagged."""
+    has_tagged_results = any(element.result for element in snapshot.elements)
+    infer_results = not has_tagged_results and _is_search_results_snapshot(snapshot)
+    converted: list[PageElement] = []
+    for element in snapshot.elements:
+        is_result = element.result
+        if infer_results and element.role == "link":
+            normalized = " ".join(element.name.split()).casefold().strip(".,!?")
+            if (
+                normalized
+                and normalized not in _SEARCH_CHROME_LINK_NAMES
+                and not normalized.isdigit()
+            ):
+                is_result = True
+        converted.append(
+            PageElement(
+                element_id=element.element_id,
+                role=element.role,
+                name=element.name,
+                result=is_result,
+            )
+        )
+    return tuple(converted)
 
 
 class PageCommandUnavailableError(RuntimeError):
@@ -120,6 +211,8 @@ def _rank_click_target(
         score = max(overlap, ratio * 0.85)
         if target in element.name.casefold():
             score = max(score, 0.9)
+        if element.result:
+            score += 0.05
         scored.append((score, element.element_id))
     if not scored:
         return None
@@ -221,15 +314,7 @@ class LivePageCommandResolver:
             if first_word in _BRIDGE_OPTIONAL_PREFIXES:
                 return None
             raise PageCommandUnavailableError(str(exc)) from exc
-        elements = tuple(
-            PageElement(
-                element_id=element.element_id,
-                role=element.role,
-                name=element.name,
-                result=element.result,
-            )
-            for element in snapshot.elements
-        )
+        elements = _elements_from_snapshot(snapshot)
         exact = resolve_page_command(collapsed, elements)
         if exact is not None:
             return exact

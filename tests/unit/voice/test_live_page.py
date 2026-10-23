@@ -141,3 +141,45 @@ def test_ranked_click_fails_closed_when_ambiguous() -> None:
     )
     resolver = LivePageCommandResolver(bridge)  # type: ignore[arg-type]
     assert resolver.resolve("click orders") is None
+
+
+def test_search_engine_snapshot_without_extension_result_flags_still_skips_chrome_links() -> None:
+    """Even if an open tab runs an older content script that omits result=True,
+    LivePageCommandResolver infers organic results on a Google search page."""
+
+    class _GoogleBridge(_Bridge):
+        def snapshot(self, timeout: float | None = None) -> PageSnapshot:
+            self.snapshot_timeouts.append(timeout)
+            self.snapshot_calls += 1
+            return PageSnapshot(
+                url="https://www.google.com/search?q=amazon",
+                title="amazon - Google Search",
+                elements=self._elements,
+            )
+
+    bridge = _GoogleBridge(
+        (
+            PageElement("n1", "link", "Skip to main content"),
+            PageElement("n2", "link", "Accessibility help"),
+            PageElement("n3", "link", "Google"),
+            PageElement("n4", "link", "Sign in"),
+            PageElement("n5", "link", "Images"),
+            PageElement("n6", "link", "Videos"),
+            PageElement("n7", "link", "Shopping"),
+            PageElement("r1", "link", "Amazon.com. Spend less. Smile more."),
+            PageElement("r2", "link", "Amazon Prime - Amazon.com"),
+        )
+    )
+    resolver = LivePageCommandResolver(bridge)  # type: ignore[arg-type]
+    assert resolver.resolve("click first link") == Intent(
+        IntentType.CLICK_ELEMENT,
+        target_id="r1",
+    )
+    assert resolver.resolve("click second link") == Intent(
+        IntentType.CLICK_ELEMENT,
+        target_id="r2",
+    )
+    assert resolver.resolve("click first result") == Intent(
+        IntentType.CLICK_ELEMENT,
+        target_id="r1",
+    )

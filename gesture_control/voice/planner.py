@@ -45,6 +45,19 @@ _BROWSER_WIDE_INTENTS = frozenset(
         IntentType.REOPEN_TAB,
     }
 )
+# Browser-wide commands that move Chrome away from a previously opened host.
+_HOST_CHANGING_INTENTS = frozenset(
+    {
+        IntentType.SEARCH_WEB,
+        IntentType.NEXT_TAB,
+        IntentType.PREVIOUS_TAB,
+        IntentType.NEW_TAB,
+        IntentType.CLOSE_TAB,
+        IntentType.GO_BACK,
+        IntentType.GO_FORWARD,
+        IntentType.REOPEN_TAB,
+    }
+)
 
 
 def _host_from_url(url: str) -> str:
@@ -167,6 +180,9 @@ class DeterministicClausePlanner:
                 self._record_open_url(command_intent.url)
             elif command_intent.kind in _BROWSER_WIDE_INTENTS:
                 self._surface = Surface.BROWSER
+                if command_intent.kind in _HOST_CHANGING_INTENTS and self._line_host is None:
+                    self._session_host = None
+                    self._session_app = None
                 # Browser-wide controls must not depend on the current host.
                 ready = None
             else:
@@ -208,11 +224,16 @@ class DeterministicClausePlanner:
                 ),
             ]
 
+        ready = self._readiness()
+        if clause.final and self._line_host is None and self._session_host is not None:
+            # Consume cross-utterance host readiness once so clicking a link
+            # that navigates to another domain does not block the next line.
+            self._session_host = None
         return [
             PageStep(
                 source=clause,
                 phrase=clause.text,
-                ready=self._readiness(),
+                ready=ready,
             ),
         ]
 

@@ -31,7 +31,9 @@ _CLICK_VERBS = frozenset(
 )
 _FOCUS_VERBS = frozenset({"focus", "select", "highlight"})
 _APP_SEARCH_FOCUS_PHRASES = frozenset({"focus app search bar", "focus page search field"})
-_FIELD_SUFFIXES = frozenset({"box", "field", "textbox", "button", "link"})
+_FIELD_SUFFIXES = frozenset(
+    {"box", "field", "textbox", "button", "buttons", "link", "links", "result", "results"}
+)
 _SUBMIT_NAME_TOKENS = frozenset({"submit", "submit answer", "submit answers", "check answer"})
 _ANSWER_FIELD_TOKENS = frozenset({"answer", "answers", "response", "responses"})
 _CLICK_PREFIX_SKIP = frozenset({"on", "the", "a", "an"})
@@ -48,6 +50,7 @@ _CAMEL_BOUNDARY = re.compile(r"([a-z])([A-Z])")
 # Keep speakable names bounded even when pages dump huge data-label values.
 _MAX_ELEMENT_NAME_CHARS = 500
 _ORDINALS = {
+    "top": 1,
     "first": 1,
     "1st": 1,
     "second": 2,
@@ -68,6 +71,18 @@ _ORDINALS = {
     "9th": 9,
     "tenth": 10,
     "10th": 10,
+}
+_WORD_NUMBERS = {
+    "one": 1,
+    "two": 2,
+    "three": 3,
+    "four": 4,
+    "five": 5,
+    "six": 6,
+    "seven": 7,
+    "eight": 8,
+    "nine": 9,
+    "ten": 10,
 }
 
 
@@ -286,11 +301,20 @@ def _role_only_click(
     while tokens and tokens[0] in _CLICK_PREFIX_SKIP:
         tokens = tokens[1:]
     ordinal: int | None = None
-    if len(tokens) >= 2 and tokens[0] in _ORDINALS:
+    if len(tokens) == 1 and tokens[0] in _ORDINALS:
+        ordinal = _ORDINALS[tokens[0]]
+        tokens = ["link"]
+    elif len(tokens) == 2 and tokens[0] in _ORDINALS and tokens[1] == "one":
+        ordinal = _ORDINALS[tokens[0]]
+        tokens = ["link"]
+    elif len(tokens) >= 2 and tokens[0] in _ORDINALS:
         ordinal = _ORDINALS[tokens[0]]
         tokens = tokens[1:]
     elif len(tokens) >= 2 and tokens[-1] in _ORDINALS:
         ordinal = _ORDINALS[tokens[-1]]
+        tokens = tokens[:-1]
+    elif len(tokens) >= 2 and tokens[-1] in _WORD_NUMBERS:
+        ordinal = _WORD_NUMBERS[tokens[-1]]
         tokens = tokens[:-1]
     elif len(tokens) >= 2 and tokens[-1].isdigit():
         ordinal = int(tokens[-1])
@@ -505,7 +529,11 @@ def _matching_elements(
     pool = exact
     if not pool:
         partial = [element for element in eligible if base in _normalize_spoken_name(element.name)]
-        pool = partial
+        result_partial = [element for element in partial if element.result]
+        if result_partial and (ordinal is not None or len(partial) > 1):
+            pool = result_partial
+        else:
+            pool = partial
     if ordinal is not None:
         chosen = _pick_by_ordinal(pool, ordinal)
         return [chosen] if chosen is not None else []

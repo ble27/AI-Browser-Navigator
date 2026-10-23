@@ -71,6 +71,9 @@ def test_open_site_aliases_and_public_bare_domains(phrase: str, url: str) -> Non
         "open example .com",
         "open -bad.example",
         "open example.c",
+        "open github first result",
+        "open google first link",
+        "open amazon orders",
     ],
 )
 def test_open_site_rejects_unsafe_or_non_domain_inputs(phrase: str) -> None:

@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import errno
+import hashlib
+import json
 import os
 import socket
 import stat
@@ -111,6 +113,93 @@ def default_socket_path() -> Path:
     return Path.home() / "Library" / "Application Support" / "AI Gestures Tool" / "page_bridge.sock"
 
 
+def extension_id_for_path(path: Path) -> str:
+    """Compute Chrome's deterministic 32-letter unpacked extension ID.
+
+    Chrome hashes the UTF-8 directory path string with SHA-256 and maps the
+    first 32 hex digits (``0``-``f``) onto ``a``-``p``.
+
+    Args:
+        path: Unpacked extension directory path.
+
+    Returns:
+        A 32-character extension ID in ``a``-``p``.
+    """
+    digest = hashlib.sha256(str(path).encode("utf-8")).hexdigest()[:32]
+    return "".join(chr(ord("a") + int(ch, 16)) for ch in digest)
+
+
+def candidate_extension_ids(extension_dir: Path | None = None) -> tuple[str, ...]:
+    """Return deterministic unpacked extension IDs for raw and canonical paths.
+
+    On case-insensitive macOS filesystems, a shell workspace path (e.g.
+    ``/Users/.../Desktop/code/...``) and Finder's canonical path
+    (``/Users/.../Desktop/Code/...``) produce different SHA-256 hashes.
+    Including both ensures Chrome's Native Messaging host accepts the unpacked
+    extension regardless of how the directory was selected.
+
+    Args:
+        extension_dir: Path to ``chrome_extension/``. Defaults to this repo's
+            ``chrome_extension`` directory.
+
+    Returns:
+        Ordered unique 32-character extension IDs.
+    """
+    target = (
+        extension_dir
+        if extension_dir is not None
+        else Path(__file__).parents[2] / "chrome_extension"
+    )
+    candidates: list[Path] = [target.expanduser().absolute()]
+    try:
+        candidates.append(target.expanduser().resolve())
+    except OSError:
+        pass
+    ids: list[str] = []
+    for candidate in candidates:
+        ext_id = extension_id_for_path(candidate)
+        if ext_id not in ids:
+            ids.append(ext_id)
+    return tuple(ids)
+
+
+def _sync_installed_native_host_origins() -> None:
+    """Ensure an installed user-level native host manifest allows all repo IDs."""
+    manifest_path = (
+        Path.home()
+        / "Library"
+        / "Application Support"
+        / "Google"
+        / "Chrome"
+        / "NativeMessagingHosts"
+        / "com.ai_gestures.page_bridge.json"
+    )
+    if not manifest_path.is_file():
+        return
+    try:
+        data = json.loads(manifest_path.read_text(encoding="utf-8"))
+        if not isinstance(data, dict):
+            return
+        raw_origins = data.get("allowed_origins")
+        if not isinstance(raw_origins, list):
+            return
+        origins = [item for item in raw_origins if isinstance(item, str)]
+        changed = False
+        for ext_id in candidate_extension_ids():
+            origin = f"chrome-extension://{ext_id}/"
+            if origin not in origins:
+                origins.append(origin)
+                changed = True
+        if changed:
+            data["allowed_origins"] = origins
+            manifest_path.write_text(
+                json.dumps(data, indent=2, sort_keys=True) + "\n",
+                encoding="utf-8",
+            )
+    except (OSError, ValueError):
+        return
+
+
 class ChromePageBridge:
     """Own a Unix socket and synchronously issue fixed page operations."""
 
@@ -148,6 +237,8 @@ class ChromePageBridge:
         """
         if self._listener is not None:
             return
+        if self.socket_path == default_socket_path():
+            _sync_installed_native_host_origins()
         self._prepare_socket_directory()
         self._remove_stale_socket()
         listener = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)

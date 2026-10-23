@@ -74,13 +74,26 @@ function validatePageResponse(response) {
   return { ok: true, result: response.result };
 }
 
-async function activeTab() {
-  const tabs = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
-  const tab = tabs[0];
-  if (!tab || typeof tab.id !== "number") {
+async function activeTabs() {
+  const focused = await chrome.tabs.query({
+    active: true,
+    lastFocusedWindow: true,
+    windowType: "normal"
+  });
+  const allNormal = await chrome.tabs.query({ active: true, windowType: "normal" });
+  const fallback = await chrome.tabs.query({ active: true });
+  const seen = new Set();
+  const candidates = [];
+  for (const tab of [...focused, ...allNormal, ...fallback]) {
+    if (tab && typeof tab.id === "number" && !seen.has(tab.id)) {
+      seen.add(tab.id);
+      candidates.push(tab);
+    }
+  }
+  if (candidates.length === 0) {
     throw new Error("No active Chrome tab is available");
   }
-  return tab;
+  return candidates;
 }
 
 async function handleNativeMessage(rawMessage) {
@@ -91,9 +104,17 @@ async function handleNativeMessage(rawMessage) {
     }
     const request = validateRequest(rawMessage);
     requestId = request.request_id;
-    const tab = await activeTab();
-    const pageResponse = await chrome.tabs.sendMessage(tab.id, request);
-    return { request_id: requestId, ...validatePageResponse(pageResponse) };
+    const candidates = await activeTabs();
+    let lastError = null;
+    for (const tab of candidates) {
+      try {
+        const pageResponse = await chrome.tabs.sendMessage(tab.id, request);
+        return { request_id: requestId, ...validatePageResponse(pageResponse) };
+      } catch (error) {
+        lastError = error;
+      }
+    }
+    throw lastError || new Error("No active Chrome tab is available");
   } catch (error) {
     return {
       request_id: requestId,

@@ -107,13 +107,9 @@ def parse_browser_command(transcript: str) -> Intent | None:
 
 
 def _match_site_alias(tokens: list[str]) -> str | None:
-    """Return the longest allowlisted alias URL for ``tokens``."""
-    for length in range(len(tokens), 0, -1):
-        key = " ".join(tokens[:length]).casefold()
-        url = _SITE_ALIASES.get(key)
-        if url is not None:
-            return url
-    return None
+    """Return the allowlisted alias URL when ``tokens`` names a known site."""
+    key = " ".join(tokens).casefold()
+    return _SITE_ALIASES.get(key)
 
 
 def _intent_for_https_url(url: str) -> Intent | None:

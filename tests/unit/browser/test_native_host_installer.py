@@ -73,3 +73,12 @@ def test_installer_rejects_invalid_extension_id(tmp_path: Path) -> None:
 
     assert result.returncode == 2
     assert "32 letters" in result.stderr
+
+
+def test_extension_id_for_path_matches_chrome_sha256_a_to_p_encoding(tmp_path: Path) -> None:
+    from gesture_control.browser.bridge import candidate_extension_ids, extension_id_for_path
+
+    ext_id = extension_id_for_path(tmp_path / "chrome_extension")
+    assert len(ext_id) == 32
+    assert all("a" <= ch <= "p" for ch in ext_id)
+    assert len(candidate_extension_ids(tmp_path / "chrome_extension")) >= 1

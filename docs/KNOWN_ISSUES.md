@@ -24,6 +24,35 @@ all-black-stream diagnostic, but cannot verify hardware availability.
 
 ## Resolved
 
+### Link clicking failed with `unresolved page step` and `readiness timeout` on macOS
+
+**Symptom**: `click first link` and `click second link` failed with
+`[failed] unresolved page step`, while `open github first result` opened the
+GitHub homepage and caused subsequent `click first link` commands to fail with
+`[failed] readiness timeout`.
+
+**Cause**:
+
+1. On macOS APFS (case-insensitive, case-preserving), the shell workspace path
+   (`/Users/.../Desktop/code/...`) and Finder's canonical path when loading the
+   unpacked extension (`/Users/.../Desktop/Code/...`) hashed to different
+   32-character Chrome extension IDs, so Chrome blocked `connectNative` against
+   `com.ai_gestures.page_bridge.json`.
+2. `parse_browser_command` matched prefix tokens in `_SITE_ALIASES` (turning
+   `open github first result` into `OPEN_URL("https://github.com")` and pinning
+   the planner's session host to `github.com`), and the planner did not clear
+   stale session-host readiness after standalone web searches or follow-on
+   clicks.
+3. Unreloaded tabs without `result=True` flags fell back to counting header/skip
+   links first on Google Search.
+
+**Fix**: `ChromePageBridge.start()` now syncs both raw-path and canonical-path
+extension IDs into `allowed_origins`, `parse_browser_command` requires the full
+site name to match an alias, `DeterministicClausePlanner` clears stale
+session-host readiness after web searches/navigation and follow-on clicks, and
+`LivePageCommandResolver` infers organic results on search pages even when a tab
+has not been refreshed after an extension update.
+
 ### Chrome Native Messaging host rejected Chrome's extension-origin argument
 
 **Symptom**: `--dump-page` reported a disconnected bridge even though Chrome

@@ -59,6 +59,36 @@ def test_session_host_persists_across_lines_for_click() -> None:
     assert steps[0].ready.host == "amazon.com"
 
 
+def test_session_host_clears_after_follow_on_click_or_web_search() -> None:
+    planner = DeterministicClausePlanner()
+    planner.plan(_clause("open github", line_id=0))
+    planner.plan(_clause("look up Amazon", line_id=1))
+    steps = planner.plan(_clause("click first link", line_id=2))
+    assert isinstance(steps[0], PageStep)
+    assert steps[0].ready is None
+
+    planner2 = DeterministicClausePlanner()
+    planner2.plan(_clause("open google", line_id=0))
+    first_click = planner2.plan(_clause("click first link", line_id=1))
+    assert isinstance(first_click[0], PageStep)
+    assert first_click[0].ready is not None
+    assert first_click[0].ready.host == "google.com"
+    # Once the user clicks a result (which may navigate to another domain),
+    # the next utterance's click must not wait on google.com again.
+    second_click = planner2.plan(_clause("click second link", line_id=2))
+    assert isinstance(second_click[0], PageStep)
+    assert second_click[0].ready is None
+
+
+def test_open_brand_first_result_is_planned_as_page_step_not_open_url() -> None:
+    planner = DeterministicClausePlanner()
+    steps = planner.plan(_clause("open github first result", line_id=0))
+    assert len(steps) == 1
+    assert isinstance(steps[0], PageStep)
+    assert steps[0].phrase == "open github first result"
+    assert steps[0].ready is None
+
+
 def test_browser_control_does_not_inherit_session_host_readiness() -> None:
     planner = DeterministicClausePlanner()
     planner.plan(_clause("open amazon", line_id=0))

@@ -195,16 +195,22 @@ class QueuedStepExecutor:
             self._cancel_line(step.source.line_id, detail="readiness timeout")
             return StepOutcome.FAILED
         intent: Intent | None = None
+        unavailable_detail: str | None = None
         if self._page is not None:
             try:
                 intent = self._page.resolve(step.phrase)
-            except PageCommandUnavailableError:
+            except PageCommandUnavailableError as exc:
+                unavailable_detail = str(exc) or "page bridge unavailable"
                 intent = None
         if intent is None:
             intent = step.fallback
         if intent is None:
             self._report(
-                StepReport(step=step, outcome=StepOutcome.FAILED, detail="unresolved page step"),
+                StepReport(
+                    step=step,
+                    outcome=StepOutcome.FAILED,
+                    detail=unavailable_detail or "unresolved page step",
+                ),
             )
             return StepOutcome.FAILED
         try:

@@ -347,7 +347,21 @@ def _search_page() -> tuple[PageElement, ...]:
 
 def test_first_link_on_a_results_page_is_the_first_result_not_the_header() -> None:
     page = _search_page()
-    for phrase in ("click first link", "click the first link", "open the first result"):
+    for phrase in (
+        "click first link",
+        "click the first link",
+        "open the first result",
+        "open first result",
+        "open first link",
+        "click top link",
+        "click the top result",
+        "click link one",
+        "click result 1",
+        "click the first one",
+        "click first",
+        "open python first result",
+        "click first python link",
+    ):
         assert resolve_page_command(phrase, page) == Intent(
             IntentType.CLICK_ELEMENT, target_id="r1"
         ), phrase
@@ -357,7 +371,25 @@ def test_first_link_on_a_results_page_is_the_first_result_not_the_header() -> No
     assert resolve_page_command("click the second link", page) == Intent(
         IntentType.CLICK_ELEMENT, target_id="r2"
     )
+    assert resolve_page_command("click second python result", page) == Intent(
+        IntentType.CLICK_ELEMENT, target_id="r2"
+    )
     assert resolve_page_command("click the fifth result", page) is None
+
+
+def test_named_click_prefers_unique_organic_result_over_header_duplicate() -> None:
+    page = (
+        PageElement(element_id="n1", role="link", name="Amazon Images"),
+        PageElement(
+            element_id="r1",
+            role="link",
+            name="Amazon.com. Spend less. Smile more.",
+            result=True,
+        ),
+    )
+    assert resolve_page_command("click Amazon", page) == Intent(
+        IntentType.CLICK_ELEMENT, target_id="r1"
+    )
 
 
 def test_first_link_without_results_still_counts_every_link() -> None:

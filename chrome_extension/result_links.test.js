@@ -31,3 +31,20 @@ test("sponsored results are excluded", () => {
     false,
   );
 });
+
+test("internal Google search and hash links are excluded even when headed", () => {
+  assert.equal(
+    isSearchResultLink({
+      ...anchor({ inside: ["#search"], heading: true }),
+      href: "https://www.google.com/search?q=amazon&tbm=isch",
+    }),
+    false,
+  );
+  assert.equal(
+    isSearchResultLink({
+      ...anchor({ inside: ["#search"], heading: true }),
+      href: "https://docs.python.org/3/",
+    }),
+    true,
+  );
+});
