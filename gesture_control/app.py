@@ -449,9 +449,10 @@ def run_streaming_voice_session(
             agent = StreamingVoiceAgent(
                 transcriber,  # type: ignore[arg-type]
                 DeterministicClauseSegmenter(),
-                DeterministicClausePlanner(),
+                DeterministicClausePlanner(preferences=hub.preferences),
                 executor,
                 output=mirror_output(hub),
+                preferences=hub.preferences,
             )
             with SafePauseHotkey(
                 backend.safe_pause,

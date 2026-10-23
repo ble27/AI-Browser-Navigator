@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import inspect
+from collections.abc import Callable
 from urllib.parse import urlparse
 
 from gesture_control.actions import Intent, IntentType
@@ -18,6 +19,7 @@ from gesture_control.voice.desktop import (
     parse_type_command,
 )
 from gesture_control.voice.page import is_app_search_focus_command
+from gesture_control.voice.preferences import VoicePreferences
 from gesture_control.voice.spans import extract_type_span, is_generic_input_target
 from gesture_control.voice.stream_contracts import (
     CancelStep,
@@ -55,9 +57,22 @@ def _host_from_url(url: str) -> str:
 class DeterministicClausePlanner:
     """Expand one committed clause into ordered execution steps."""
 
-    def __init__(self, initial_surface: Surface = Surface.BROWSER) -> None:
-        """Create a planner with a starting surface assumption."""
+    def __init__(
+        self,
+        initial_surface: Surface = Surface.BROWSER,
+        *,
+        preferences: Callable[[], VoicePreferences] | None = None,
+    ) -> None:
+        """Create a planner with a starting surface assumption.
+
+        Args:
+            initial_surface: Browser or app surface to start from.
+            preferences: Optional live settings. Plain scroll commands use
+                ``scroll_pages()`` when this is set. The pinned constructor
+                signature stays positional so existing callers are unchanged.
+        """
         self._surface = initial_surface
+        self._preferences = preferences
         self._active_line_id: int | None = None
         self._line_host: str | None = None
         self._line_app: LaunchableApp | None = None
@@ -140,7 +155,8 @@ class DeterministicClausePlanner:
                 )
             return steps
 
-        command_intent = parse_command(clause.text)
+        scroll_pages = None if self._preferences is None else self._preferences().scroll_pages()
+        command_intent = parse_command(clause.text, scroll_pages=scroll_pages)
         # ``parse_command`` also supports legacy one-shot bare typing. The
         # streaming path needs its PageStep fallback to preserve page matching.
         if command_intent is not None and command_intent.kind is IntentType.TYPE_FOCUSED:

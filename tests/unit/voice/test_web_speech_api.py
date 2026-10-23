@@ -141,6 +141,21 @@ def test_foreign_origin_and_host_are_rejected(served) -> None:
     assert hub.enabled is True and events == []
 
 
+def test_settings_round_trip_and_reject_unknown_values(served) -> None:
+    bridge, hub, _events = served
+    status, body, _headers = _request(bridge, "GET", "/api/settings")
+    assert status == 200
+    assert json.loads(body)["scroll"] == "medium"
+    status, body, _headers = _request(
+        bridge, "POST", "/api/settings", {"scroll": "large", "highContrast": True}
+    )
+    assert status == 200
+    assert json.loads(body)["scroll"] == "large"
+    assert hub.preferences().high_contrast is True
+    assert _request(bridge, "POST", "/api/settings", {"scroll": "huge"})[0] == 400
+    assert hub.preferences().scroll == "large"
+
+
 def test_same_origin_is_accepted(served) -> None:
     bridge, _hub, _events = served
     origin = {"Origin": f"http://127.0.0.1:{bridge.port}"}

@@ -20,6 +20,10 @@ describe("parseEvent", () => {
     ['{"type":"enabled","enabled":false}', "enabled"],
     ['{"type":"state","enabled":true,"events":[]}', "state"],
     ['{"type":"log","line":"x"}', "log"],
+    [
+      '{"type":"settings","scroll":"small","typing":"steady","textSize":"large","highContrast":true}',
+      "settings",
+    ],
   ])("accepts %s", (raw, type) => {
     expect(parseEvent(raw)?.type).toBe(type);
   });
@@ -33,6 +37,7 @@ describe("parseEvent", () => {
     '{"type":"transcript","kind":"final","text":5}',
     '{"type":"enabled","enabled":"yes"}',
     '{"type":"step","outcome":"done"}',
+    '{"type":"settings","scroll":"huge","typing":"fast","textSize":"default","highContrast":false}',
     "",
   ])("rejects %s", (raw) => {
     expect(parseEvent(raw)).toBeNull();

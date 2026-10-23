@@ -18,6 +18,8 @@ from gesture_control.voice.search import parse_search_command
 def parse_command(
     transcript: str,
     utterance_duration_s: float | None = None,
+    *,
+    scroll_pages: int | None = None,
 ) -> Intent | None:
     """Parse one supported deterministic command.
 
@@ -25,6 +27,8 @@ def parse_command(
         transcript: Raw voice-style command text.
         utterance_duration_s: Optional captured audio duration used to scale
             plain scroll commands only.
+        scroll_pages: Optional fixed page count for a plain scroll. Explicit
+            scroll phrases ignore it.
 
     Returns:
         A supported desktop or browser intent, or ``None`` when no
@@ -45,7 +49,11 @@ def parse_command(
     navigation_intent = parse_browser_navigation_command(transcript)
     if navigation_intent is not None:
         return navigation_intent
-    scroll_intent = parse_scroll_command(transcript, utterance_duration_s)
+    scroll_intent = parse_scroll_command(
+        transcript,
+        utterance_duration_s,
+        default_pages=scroll_pages,
+    )
     if scroll_intent is not None:
         return scroll_intent
     search_intent = parse_search_command(transcript)

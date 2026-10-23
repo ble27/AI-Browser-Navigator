@@ -25,6 +25,7 @@ from gesture_control.voice.policy import (
     is_type_only_steps,
     partition_steps,
 )
+from gesture_control.voice.preferences import VoicePreferences
 from gesture_control.voice.stream_contracts import (
     STABLE_PARTIALS_TO_COMMIT,
     Clause,
@@ -56,6 +57,7 @@ class StreamingVoiceAgent:
         fast_debounce_s: float = FAST_CLOSED_DEBOUNCE_S,
         free_text_silence_s: float = FREE_TEXT_SILENCE_S,
         type_silence_s: float = TYPE_COMMAND_SILENCE_S,
+        preferences: Callable[[], VoicePreferences] | None = None,
     ) -> None:
         """Wire streaming voice ports together.
 
@@ -71,7 +73,10 @@ class StreamingVoiceAgent:
             free_text_silence_s: Quiet time before held free-text steps flush.
             type_silence_s: Quiet time before a type/write command is typed.
                 Shorter than ``free_text_silence_s`` so dictation does not wait
-                for the recognizer's final result.
+                for the recognizer's final result. Ignored when ``preferences``
+                is set.
+            preferences: Live pill settings. When set, dictation uses
+                ``type_silence_s()`` from the current value.
         """
         self._transcriber = transcriber
         self._segmenter = segmenter
@@ -83,6 +88,7 @@ class StreamingVoiceAgent:
         self._fast_debounce_s = fast_debounce_s
         self._free_text_silence_s = free_text_silence_s
         self._type_silence_s = type_silence_s
+        self._preferences = preferences
         # Text already inserted for a clause, so a later final appends only
         # the new suffix instead of typing the whole phrase again.
         self._typed_text: dict[tuple[int, int], str] = {}
@@ -328,6 +334,8 @@ class StreamingVoiceAgent:
     def _silence_delay(self) -> float:
         """Use the shorter window only for type/write dictation."""
         if is_type_only_steps(self._held_steps):
+            if self._preferences is not None:
+                return self._preferences().type_silence_s()
             return self._type_silence_s
         return self._free_text_silence_s
 

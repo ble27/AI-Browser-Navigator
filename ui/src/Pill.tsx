@@ -11,6 +11,8 @@ export interface PillProps {
   /** Mic / recognition problem to show instead of the normal status. */
   problem: string | null;
   onToggle: () => void;
+  settingsOpen?: boolean;
+  onOpenSettings?: () => void;
 }
 
 /** One line of status text for the current state. Problems and lost connection win. */
@@ -40,7 +42,8 @@ export function statusText({
 
 /** Dynamic-Island-style pill: on/off switch, live soundwave, and what was heard. */
 export function Pill(props: PillProps): JSX.Element {
-  const { phase, enabled, connected, levels, problem, onToggle } = props;
+  const { phase, enabled, connected, levels, problem, onToggle, settingsOpen, onOpenSettings } =
+    props;
   const live = enabled && problem === null;
   const text = statusText(props);
   const visualPhase = problem !== null ? "error" : phase;
@@ -60,6 +63,17 @@ export function Pill(props: PillProps): JSX.Element {
       <p className="pill__text" role="status" aria-live="polite">
         {text}
       </p>
+      {onOpenSettings !== undefined ? (
+        <button
+          type="button"
+          className="pill__settings"
+          aria-expanded={settingsOpen === true}
+          aria-controls="accessibility-settings"
+          onClick={onOpenSettings}
+        >
+          Settings
+        </button>
+      ) : null}
     </div>
   );
 }

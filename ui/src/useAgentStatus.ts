@@ -1,6 +1,12 @@
-import { useCallback, useEffect, useReducer, useRef } from "react";
-import { openEventStream, setEnabled as postEnabled, type EventSourceFactory } from "./api";
+import { useCallback, useEffect, useReducer, useRef, useState } from "react";
+import {
+  openEventStream,
+  setEnabled as postEnabled,
+  updateSettings as postSettings,
+  type EventSourceFactory,
+} from "./api";
 import { initialPillState, pillReducer, type PillState } from "./pillState";
+import { defaultSettings, isVoiceSettings, type VoiceSettings } from "./types";
 
 /** How long a result ("done" / error) stays on screen before returning to idle. */
 export const SETTLE_MS = 2500;
@@ -8,6 +14,7 @@ export const SETTLE_MS = 2500;
 export interface AgentStatusOptions {
   streamFactory?: EventSourceFactory;
   setEnabledRequest?: (enabled: boolean) => Promise<boolean>;
+  updateSettingsRequest?: (settings: VoiceSettings) => Promise<VoiceSettings>;
   settleMs?: number;
 }
 
@@ -16,13 +23,24 @@ export interface AgentStatus extends PillState {
   toggle: () => void;
   /** Set when the last toggle request could not reach the bridge. */
   toggleError: boolean;
+  settings: VoiceSettings;
+  /** Save a new settings object. Reverts locally if the bridge rejects it. */
+  updateSettings: (settings: VoiceSettings) => void;
 }
 
 /** Subscribe to the bridge, derive the pill's state, and expose the toggle. */
 export function useAgentStatus(options: AgentStatusOptions = {}): AgentStatus {
-  const { streamFactory, setEnabledRequest = postEnabled, settleMs = SETTLE_MS } = options;
+  const {
+    streamFactory,
+    setEnabledRequest = postEnabled,
+    updateSettingsRequest = postSettings,
+    settleMs = SETTLE_MS,
+  } = options;
   const [state, dispatch] = useReducer(pillReducer, initialPillState);
+  const [settings, setSettings] = useState(defaultSettings);
   const [toggleError, setToggleError] = useReducer((_: boolean, next: boolean) => next, false);
+  const settingsRef = useRef(settings);
+  settingsRef.current = settings;
   const stateRef = useRef(state);
   stateRef.current = state;
   const requestRef = useRef(setEnabledRequest);
@@ -32,7 +50,13 @@ export function useAgentStatus(options: AgentStatusOptions = {}): AgentStatus {
     () =>
       openEventStream(
         {
-          onEvent: (event) => dispatch({ kind: "event", event }),
+          onEvent: (event) => {
+            dispatch({ kind: "event", event });
+            if (event.type === "settings") setSettings(event);
+            if (event.type === "state" && isVoiceSettings(event.settings)) {
+              setSettings(event.settings);
+            }
+          },
           onConnection: (connected) => dispatch({ kind: "connection", connected }),
         },
         streamFactory,
@@ -55,5 +79,11 @@ export function useAgentStatus(options: AgentStatusOptions = {}): AgentStatus {
       .catch(() => setToggleError(true));
   }, []);
 
-  return { ...state, toggle, toggleError };
+  const updateSettings = useCallback((next: VoiceSettings) => {
+    const previous = settingsRef.current;
+    setSettings(next);
+    void updateSettingsRequest(next).catch(() => setSettings(previous));
+  }, [updateSettingsRequest]);
+
+  return { ...state, toggle, toggleError, settings, updateSettings };
 }

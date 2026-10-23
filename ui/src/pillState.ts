@@ -64,6 +64,7 @@ function applyEvent(state: PillState, event: AgentEvent): PillState {
       if (!state.enabled) return state;
       return applyStep(state, event);
     case "log":
+    case "settings":
       return state;
   }
 }

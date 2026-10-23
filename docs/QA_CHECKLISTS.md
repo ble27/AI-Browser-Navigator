@@ -73,7 +73,9 @@ Focus Google Chrome and keep the SafePause hotkey available.
 - [ ] `page up/down`, small/large scrolls, explicit 1-10 page counts, and
       top/bottom scroll in the documented direction.
 - [ ] Holding a plain spoken `scroll down` longer increases its bounded
-      magnitude, while `scroll down 2 pages` remains two pages.
+      magnitude on the one-shot `--command` path, while `scroll down 2 pages`
+      remains two pages. In the pill, a plain scroll uses the Settings
+      distance instead of how long you held the phrase.
 - [ ] Control+Option+Command+P blocks open, navigation, search, and scrolling.
 
 ## Voice — live Chrome page controls
@@ -262,6 +264,12 @@ actions (type / ask / search / page click) flush. Destructive clicks
 - [ ] Press the SafePause hotkey, say a command: pill shows "Input paused" and
       nothing is dispatched.
 - [ ] Stop the Python process: pill shows "Reconnecting to assistant…".
+- [ ] Open **Settings**, choose **Large** scroll, say **scroll down**: the page
+      moves about six pages. **scroll down 2 pages** still moves two pages.
+- [ ] Choose **Steady** typing, say **type hello** into a focused field: the
+      text waits through a short pause. **Fast** types sooner.
+- [ ] Choose **Large** text and **High contrast**: the status line is larger
+      and stays near white while idle.
 - [ ] Deny the mic in Chrome: pill shows "Microphone blocked" (and not after the
       switch is off).
 

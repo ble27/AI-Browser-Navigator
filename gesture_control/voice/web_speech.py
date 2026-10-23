@@ -149,7 +149,7 @@ def open_chrome_control_window(url: str) -> None:
                 f"--user-data-dir={profile}",
                 f"--app={url}",
                 # Small window sized for the pill; the page itself is transparent.
-                "--window-size=420,110",
+                "--window-size=460,180",
             ]
         )
     except OSError as exc:
@@ -432,6 +432,8 @@ def _handler_for(owner: WebSpeechStreamingTranscriber) -> type[BaseHTTPRequestHa
                     self.send_error(404)
                 elif path == "/api/state":
                     self._send_json(200, hub.snapshot())
+                elif path == "/api/settings":
+                    self._send_json(200, hub.preferences().to_dict())
                 elif path == "/api/events":
                     self._stream_events(hub)
                 else:
@@ -469,11 +471,11 @@ def _handler_for(owner: WebSpeechStreamingTranscriber) -> type[BaseHTTPRequestHa
             if not self._allowed():
                 return
             path = self.path.split("?", 1)[0]
-            if path not in {"/transcript", "/api/enabled"}:
+            if path not in {"/transcript", "/api/enabled", "/api/settings"}:
                 self.send_error(404)
                 return
             hub = owner.hub
-            if path == "/api/enabled" and hub is None:
+            if path in {"/api/enabled", "/api/settings"} and hub is None:
                 self.send_error(404)
                 return
             payload = self._read_json_body()
@@ -487,6 +489,14 @@ def _handler_for(owner: WebSpeechStreamingTranscriber) -> type[BaseHTTPRequestHa
                     return
                 hub.set_enabled(value)
                 self._send_json(200, {"enabled": hub.enabled})
+                return
+            if path == "/api/settings":
+                assert hub is not None
+                updated = hub.update_preferences(payload)
+                if updated is None:
+                    self.send_error(400)
+                    return
+                self._send_json(200, updated.to_dict())
                 return
             owner.submit(payload)
             self.send_response(204)

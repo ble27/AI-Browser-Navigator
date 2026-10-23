@@ -36,6 +36,8 @@ _EXPLICIT_PAGES_FIRST = re.compile(
 def parse_scroll_command(
     transcript: str,
     utterance_duration_s: float | None = None,
+    *,
+    default_pages: int | None = None,
 ) -> Intent | None:
     """Parse a scroll command into signed page units.
 
@@ -46,18 +48,28 @@ def parse_scroll_command(
     Args:
         transcript: Raw voice-style command text.
         utterance_duration_s: Optional captured audio duration. Used only for
-            a plain scroll command.
+            a plain scroll command when ``default_pages`` is omitted.
+        default_pages: Page count for a plain ``scroll up`` / ``scroll down``.
+            The pill's scroll setting passes this so distance does not depend
+            on how long the utterance was. Explicit sizes still win.
 
     Returns:
         A bounded non-zero ``SCROLL`` intent, or ``None`` for unknown text.
 
     Raises:
-        ValueError: If ``utterance_duration_s`` is negative or non-finite.
+        ValueError: If ``utterance_duration_s`` is negative or non-finite, or
+            ``default_pages`` is not one of the supported scroll sizes.
     """
     if utterance_duration_s is not None and (
         not math.isfinite(utterance_duration_s) or utterance_duration_s < 0
     ):
         raise ValueError("utterance_duration_s must be finite and non-negative.")
+    if default_pages is not None and default_pages not in {
+        1,
+        DEFAULT_SCROLL_PAGES,
+        LARGE_SCROLL_PAGES,
+    }:
+        raise ValueError("default_pages must be a supported scroll size.")
 
     normalized = _normalize(transcript)
     edge_amounts = {
@@ -113,7 +125,10 @@ def parse_scroll_command(
     plain_match = re.fullmatch(r"scroll (?P<direction>up|down)", normalized)
     if plain_match is None:
         return None
-    pages = _duration_scaled_pages(utterance_duration_s)
+    if default_pages is not None:
+        pages = default_pages
+    else:
+        pages = _duration_scaled_pages(utterance_duration_s)
     return _scroll_intent(plain_match.group("direction"), pages)
 
 

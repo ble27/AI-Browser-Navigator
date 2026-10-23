@@ -7,6 +7,7 @@ import time
 from gesture_control.actions import IntentType
 from gesture_control.backends.base import PressableKey
 from gesture_control.voice.planner import DeterministicClausePlanner
+from gesture_control.voice.preferences import VoicePreferences
 from gesture_control.voice.segmenter import DeterministicClauseSegmenter
 from gesture_control.voice.stream_contracts import (
     ResolvedStep,
@@ -94,3 +95,26 @@ def test_revised_type_command_backspaces_the_previous_text() -> None:
     ]
     assert len(backspaces) == 3
     assert _typed(executor)[-1] == "car"
+
+
+def test_steady_typing_setting_waits_longer_than_the_fast_default() -> None:
+    executor = _FakeExecutor()
+    agent = StreamingVoiceAgent(
+        _FakeTranscriber(),
+        DeterministicClauseSegmenter(),
+        DeterministicClausePlanner(),
+        executor,
+        output=lambda _line: None,
+        debounce_s=0.02,
+        fast_debounce_s=0.01,
+        free_text_silence_s=5.0,
+        type_silence_s=0.05,
+        preferences=lambda: VoicePreferences(typing="steady"),
+    )
+    agent.on_event(_partial("type hello"))
+    time.sleep(0.25)
+    assert _typed(executor) == []
+    deadline = time.monotonic() + 1.5
+    while _typed(executor) != ["hello"] and time.monotonic() < deadline:
+        time.sleep(0.02)
+    assert _typed(executor) == ["hello"]

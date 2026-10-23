@@ -12,6 +12,7 @@ import threading
 from collections import deque
 from typing import Any
 
+from gesture_control.voice.preferences import VoicePreferences, merge_preferences
 from gesture_control.voice.stream_contracts import (
     PageStep,
     ResolvedStep,
@@ -79,6 +80,7 @@ class StatusHub:
         self._closed = False
         self._subscribers: list[Subscription] = []
         self._history: deque[Event] = deque(maxlen=_HISTORY)
+        self._preferences = VoicePreferences()
 
     @property
     def enabled(self) -> bool:
@@ -104,6 +106,30 @@ class StatusHub:
         if changed:
             self.publish({"type": "enabled", "enabled": enabled})
 
+    def preferences(self) -> VoicePreferences:
+        """Return the settings the planner and dictation timer should use."""
+        with self._lock:
+            return self._preferences
+
+    def update_preferences(self, payload: object) -> VoicePreferences | None:
+        """Merge a settings payload and publish it when it changes.
+
+        Args:
+            payload: JSON object from the pill. Unknown or illegal values fail.
+
+        Returns:
+            The stored settings, or ``None`` when ``payload`` is rejected.
+        """
+        with self._lock:
+            merged = merge_preferences(self._preferences, payload)
+            if merged is None:
+                return None
+            changed = merged != self._preferences
+            self._preferences = merged
+        if changed:
+            self.publish({"type": "settings", **merged.to_dict()})
+        return merged
+
     def publish(self, event: Event) -> None:
         """Broadcast ``event`` to all subscribers and remember it.
 
@@ -122,10 +148,14 @@ class StatusHub:
         """Return the current state for a freshly loaded UI.
 
         Returns:
-            Dict with ``enabled`` and the most recent ``events``.
+            Dict with ``enabled``, ``settings``, and the most recent ``events``.
         """
         with self._lock:
-            return {"enabled": self._enabled, "events": list(self._history)}
+            return {
+                "enabled": self._enabled,
+                "settings": self._preferences.to_dict(),
+                "events": list(self._history),
+            }
 
     def subscribe(self) -> Subscription:
         """Register a new consumer.

@@ -23,9 +23,28 @@ body {
 
 #root {
   height: 100%;
-  display: grid;
-  place-items: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
   padding: 12px;
+}
+
+.island {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  width: min(420px, 100%);
+}
+
+.island[data-text-size="large"] .pill__text,
+.island[data-text-size="large"] .settings {
+  font-size: 18px;
+}
+
+.island[data-contrast="high"] {
+  --muted: #f5f5f7;
+  --ink: #ffffff;
 }
 
 /* The island: a black capsule that widens as it has more to say. */
@@ -130,6 +149,60 @@ body {
 
 .pill[data-phase="done"] .waveform__bar {
   background: var(--accent);
+}
+
+.pill__settings {
+  flex: none;
+  margin: 0;
+  padding: 4px 8px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.pill__settings:focus-visible {
+  outline: 2px solid var(--wave);
+  outline-offset: 2px;
+}
+
+.settings {
+  width: 100%;
+  margin: 0;
+  padding: 14px 16px;
+  border-radius: 22px;
+  background: var(--island);
+  color: var(--ink);
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.45), inset 0 0 0 1px rgba(255, 255, 255, 0.08);
+}
+
+.settings__group {
+  margin: 0 0 12px;
+  padding: 0;
+  border: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 14px;
+}
+
+.settings__group legend {
+  width: 100%;
+  margin-bottom: 4px;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.settings label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.settings__contrast {
+  display: flex;
 }
 
 .pill__text {

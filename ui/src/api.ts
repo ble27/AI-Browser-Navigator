@@ -1,4 +1,4 @@
-import type { AgentEvent } from "./types";
+import { isVoiceSettings, type AgentEvent, type VoiceSettings } from "./types";
 
 /** Minimal slice of `EventSource` we depend on (easy to fake in tests). */
 export interface EventSourceLike {
@@ -50,7 +50,11 @@ export function parseEvent(raw: string): AgentEvent | null {
   const event = value as Record<string, unknown>;
   switch (event["type"]) {
     case "state":
-      return typeof event["enabled"] === "boolean" ? (value as AgentEvent) : null;
+      if (typeof event["enabled"] !== "boolean") return null;
+      if (event["settings"] !== undefined && !isVoiceSettings(event["settings"])) return null;
+      return value as AgentEvent;
+    case "settings":
+      return isVoiceSettings(event) ? (value as AgentEvent) : null;
     case "enabled":
       return typeof event["enabled"] === "boolean" ? (value as AgentEvent) : null;
     case "transcript":
@@ -89,6 +93,17 @@ export async function setEnabled(
   const response = await postJson("/api/enabled", { enabled }, fetchImpl);
   const body = (await response.json()) as { enabled?: unknown };
   return body.enabled === true;
+}
+
+/** Save pill accessibility settings. The bridge echoes them on the event stream. */
+export async function updateSettings(
+  settings: VoiceSettings,
+  fetchImpl: typeof fetch = fetch,
+): Promise<VoiceSettings> {
+  const response = await postJson("/api/settings", settings, fetchImpl);
+  const body: unknown = await response.json();
+  if (!isVoiceSettings(body)) throw new Error("/api/settings returned an invalid body");
+  return body;
 }
 
 /** Forward recognized speech to the agent pipeline. */

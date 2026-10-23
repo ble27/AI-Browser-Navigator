@@ -134,9 +134,11 @@ Chrome must be focused.
   explicit `1`-`10` page variants; `scroll to top` / `scroll to bottom`
 
 Scroll intent amounts are signed page units: positive is up and negative is
-down. macOS converts each page to five fixed pynput notches. Holding a plain
-spoken `scroll up` or `scroll down` longer scales from 3 to at most 10 pages
-using captured audio duration; explicit size/page modifiers win.
+down. macOS converts each page to five fixed pynput notches. A plain
+`scroll up` or `scroll down` uses the pill's scroll setting (small is 1 page,
+medium is 3, large is 6). Without that setting, holding the phrase longer
+scales from 3 to at most 10 pages using captured audio duration. Explicit
+size and page phrases always win.
 
 Unknown names (`open my bank`), localhost/IP/private hosts, whitespace,
 non-HTTPS schemes, and URLs with credentials are rejected. Extra unknown words
@@ -222,7 +224,10 @@ Homework-oriented phrases on WebAssign-style pages:
 
 A small Dynamic-Island-style pill is the control surface for streaming voice.
 It shows a live soundwave and what was heard, and has one switch that turns the
-AI on or off for your Chrome pages.
+AI on or off for your Chrome pages. **Settings** changes scroll distance,
+how quickly typed text is committed, text size, and contrast. The reasons for
+those four controls are in
+[`docs/research/voice-accessibility-settings.md`](docs/research/voice-accessibility-settings.md).
 
 ```bash
 cd ui && npm install && npm run build && cd ..   # once, builds ui/dist
