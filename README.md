@@ -5,9 +5,12 @@ Hands-free control of your computer with **offline hand-gesture tracking** and
 link", and Chrome does it. Move your index finger to steer the cursor and pinch
 to click.
 
-![The voice pill](docs/images/pill.png)
+<p align="center">
+  <img src="docs/images/pill.png" alt="The voice pill with its settings panel" width="460">
+</p>
 
-*The voice pill: an on/off switch, a live soundwave, what was heard, and Settings.*
+*The voice pill: an on/off switch, a live soundwave, what was heard, and Settings
+for scroll distance, typing response, text size, and contrast.*
 
 ## Why it is useful
 
