@@ -174,11 +174,13 @@ Voice commands keep Chrome's browser UI separate from an app's HTML controls.
 - After either focus command, `type <text>` enters literal text in that focused
   field. `enter`, `return`, or `done` presses the Mac Return key (not the
   keypad Enter key) to submit it. No focus command types or submits text.
-- `unfocus` blurs a focused app search field or page composer; `delete line`
-  clears that field, `delete word` removes the word before the cursor, and
-  `clear search` clears only a focused search field. These commands require
-  the page bridge and do not match phrases such as `type delete word` or
-  `search for delete word`.
+- `unfocus` blurs a focused app search field or page composer. `delete word`
+  removes the word before the cursor in that field, and `clear search` clears
+  only a focused search field.
+- `delete line` removes the line where the blinking cursor is, in any focused
+  text field (a single-line input is cleared). It does not clear the rest of
+  a multi-line field. These commands require the page bridge and do not match
+  phrases such as `type delete word` or `search for delete word`.
 
 "Chrome search bar" always means the omnibox. "App search bar" always means a
 web page's HTML field. This differs from `search for <text>` behavior,

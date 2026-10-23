@@ -36,5 +36,6 @@ jobs:
         run: |
           node --check chrome_extension/content_script.js
           node --check chrome_extension/link_activation.js
+          node --check chrome_extension/text_edit.js
           node --check chrome_extension/service_worker.js
           python -m json.tool chrome_extension/manifest.json >/dev/null

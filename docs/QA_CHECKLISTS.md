@@ -241,6 +241,13 @@ actions (type / ask / search / page click) flush. Destructive clicks
 - [ open tasks, can't cancel too quick ] Regression: `gesture-control --voice --voice-mode utterance` still behaves
       as before.
 
+## Focused-field editing
+
+- [ ] Focus a multi-line text area, put the cursor in the middle line, and say
+      **delete line**. Only that line disappears. The lines above and below stay.
+- [ ] The same command in a single-line input clears that input.
+- [ ] **delete line** works in a normal text field, not only a search box.
+
 ## Voice pill UI (manual; needs Chrome and a microphone)
 
 - [ ] `cd ui && npm run build`, then `python -m gesture_control.app --voice

@@ -444,8 +444,14 @@
     }
     const search = isSearchField(element);
     const composer = isComposer(element);
-    if (action === "clear_search" ? !search : !search && !composer) {
+    if (
+      typeof fieldAllowsAction === "function" &&
+      !fieldAllowsAction(action, { editable: true, search, composer })
+    ) {
       throw new Error("Focus a page search field or composer before using this command");
+    }
+    if (action === "delete_line" && !activeIsEditable) {
+      throw new Error("Click into the line you want to delete first");
     }
     element.focus();
     lastEditableField = element;
@@ -499,6 +505,61 @@
     }
   }
 
+  function deleteLineAtCaret(element) {
+    if (element instanceof HTMLInputElement || element instanceof HTMLTextAreaElement) {
+      const start = element.selectionStart ?? element.value.length;
+      const end = element.selectionEnd ?? start;
+      const edited = deleteCurrentLine(element.value, start, end);
+      const prototype =
+        element instanceof HTMLTextAreaElement ? HTMLTextAreaElement.prototype : HTMLInputElement.prototype;
+      Object.getOwnPropertyDescriptor(prototype, "value").set.call(element, edited.value);
+      element.setSelectionRange(edited.caret, edited.caret);
+      element.dispatchEvent(
+        new InputEvent("input", { bubbles: true, inputType: "deleteContent", data: null })
+      );
+      element.dispatchEvent(new Event("change", { bubbles: true }));
+      return;
+    }
+    const selection = window.getSelection();
+    if (!selection) {
+      throw new Error("The page field does not expose a text cursor");
+    }
+    const anchor = selection.anchorNode;
+    const block =
+      anchor && anchor.nodeType === Node.ELEMENT_NODE
+        ? anchor
+        : anchor && anchor.parentElement;
+    const line = block && typeof block.closest === "function"
+      ? block.closest("p, div, li, h1, h2, h3, h4")
+      : null;
+    if (line && line !== element && element.contains(line)) {
+      const parent = line.parentNode;
+      const next = line.nextSibling;
+      line.remove();
+      if (parent) {
+        const range = document.createRange();
+        range.setStart(parent, next ? Array.prototype.indexOf.call(parent.childNodes, next) : parent.childNodes.length);
+        range.collapse(true);
+        selection.removeAllRanges();
+        selection.addRange(range);
+      }
+      element.dispatchEvent(
+        new InputEvent("input", { bubbles: true, inputType: "deleteContent", data: null })
+      );
+      return;
+    }
+    if (typeof selection.modify === "function") {
+      selection.modify("extend", "backward", "lineboundary");
+      selection.modify("extend", "forward", "lineboundary");
+    }
+    if (!selection.isCollapsed && !document.execCommand("delete")) {
+      selection.getRangeAt(0).deleteContents();
+      element.dispatchEvent(
+        new InputEvent("input", { bubbles: true, inputType: "deleteContent", data: null })
+      );
+    }
+  }
+
   function editFocusedField(action) {
     if (!FIELD_ACTIONS.has(action)) {
       throw new Error("Unsupported focused-field action");
@@ -510,6 +571,10 @@
     }
     if (action === "delete_word") {
       deletePreviousWord(element);
+      return;
+    }
+    if (action === "delete_line") {
+      deleteLineAtCaret(element);
       return;
     }
     if (element instanceof HTMLInputElement || element instanceof HTMLTextAreaElement) {

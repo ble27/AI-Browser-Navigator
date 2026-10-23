@@ -18,6 +18,7 @@
       ],
       "js": [
         "link_activation.js",
+        "text_edit.js",
         "content_script.js"
       ],
       "run_at": "document_idle",
